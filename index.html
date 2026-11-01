@@ -445,6 +445,15 @@ function vSettle(){
 }
 
 function vReport(){
+  var canShare=!downloadsApi && window.parent===window && navigator.canShare && navigator.share;
+  return '<div class="card"><h3>정산표 내보내기</h3><p class="desc">PDF로 저장해서 단톡방에 올리거나, 공지 문구를 복사해 붙여넣으세요.</p>'+
+    '<div class="two"><button class="btn pri big" data-a="pdf">PDF 저장</button>'+
+    (canShare?'<button class="btn big" data-a="pdfShare">PDF 공유</button>':'<button class="btn big" data-a="notice">공지 문구 복사</button>')+'</div>'+
+    '<div class="row-actions" style="margin-top:8px">'+(canShare?'<button class="btn sm" data-a="notice">공지 문구 복사</button>':'')+
+    '<button class="btn sm" data-a="gsheet">구글시트</button><button class="btn sm" data-a="csv">엑셀(CSV)</button></div></div>'+
+    '<p class="muted" style="margin:0 2px 8px">미리보기 (옆으로 밀어서 볼 수 있어요)</p>'+reportSheet();
+}
+function reportSheet(){
   var c=calc(), n=Math.max(c.maxEntries,1);
   var g=S.info.grades.filter(function(x){return num(x.count);}).map(function(x){return esc(x.label)+' '+num(x.count)+'명';}).join(', ');
   var th='<tr><th>순번</th><th>내용</th><th>단가</th><th>인원</th><th>일수</th><th>금액</th><th>실제사용금액</th><th class="sep"></th>';
@@ -460,8 +469,7 @@ function vReport(){
   body+='<tr class="tot"><td colspan="5" class="c">합 계</td><td class="r">'+fmt(c.budget)+'</td><td class="r">'+fmt(c.used)+'</td><td class="sep"></td>'+colSum+'</tr>';
   var bank=S.bank.extras.map(function(x){return '<div class="kv"><span>'+esc(x.label)+'</span><b class="num '+(num(x.amount)<0?'neg':'')+'">'+paren(num(x.amount))+'</b></div>';}).join('');
   var depTxt=S.deposits.filter(function(d){return num(d.count);}).map(function(d){return fmt(num(d.amount))+'원×'+num(d.count)+'명';}).join(' + ');
-  return '<div class="row-actions" style="margin:0 0 12px"><button class="btn sm" data-a="gsheet">구글시트 내보내기·불러오기</button><button class="btn sm" data-a="notice">공지 문구 복사</button><button class="btn sm" data-a="csv">엑셀(CSV) 받기</button></div>'+
-  '<div class="sheet"><h3>'+esc(S.info.title)+' 정산 안내</h3><ul class="info">'+
+  return '<div class="sheet"><h3>'+esc(S.info.title)+' 정산 안내</h3><ul class="info">'+
   '<li>장 소 : '+esc(S.info.place)+'</li><li>기 간 : '+esc(c.period)+'</li>'+
   '<li>참가 인원 : <b class="neg">선수 '+c.players+'명</b>'+(g?' ('+g+')':'')+' / 지도진 '+num(S.info.coaches)+'명 / <b class="neg">총 '+c.total+'명</b></li></ul>'+
   '<p style="margin:0 0 6px;font-weight:800">• 주요 예산 항목 <span class="legend" style="font-weight:400">— 사용내역 검정: 영수증 증빙 / <span class="blue">파랑: 체크카드 및 이체 (모임통장에서 확인)</span></span></p>'+
@@ -608,6 +616,8 @@ root.addEventListener('click',function(e){
     case 'menu': menu(); return;
     case 'notice': showCopy('공지 문구',noticeText()); return;
     case 'csv': csv(); return;
+    case 'pdf': makePDF(false); return;
+    case 'pdfShare': makePDF(true); return;
     case 'gsheet': gsheetModal(); return;
     case 'discardDraft': S=published?clone(published):sample(); dirty=false; restoredDraft=false; try{localStorage.removeItem(LS_KEY);}catch(_){ } render(); return;
     default: return;
@@ -695,13 +705,16 @@ function showCopy(title,text){
 }
 function download(name,data,mime){
   if(!downloadsApi){
-    if(window.parent!==window){ showCopy('파일 받기를 쓸 수 없는 화면이에요 — 아래 내용을 복사하세요',data); return; }
+    if(window.parent!==window){ if(typeof data!=='string'){ toast('이 화면에서는 파일을 받을 수 없어요'); return; } showCopy('파일 받기를 쓸 수 없는 화면이에요 — 아래 내용을 복사하세요',data); return; }
     try{ var u=URL.createObjectURL(new Blob([data],{type:mime+';charset=utf-8'})); var a=document.createElement('a'); a.href=u; a.download=name;
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(u);},2000); toast('파일을 받았어요'); }
     catch(e){ showCopy('아래 내용을 복사하세요',data); }
     return;
   }
-  Promise.resolve(downloadsApi.save({filename:name,data:data,mimeType:mime})).then(function(){toast('파일을 저장했어요');},function(){toast('파일 저장을 취소했어요');});
+  Promise.resolve(downloadsApi.save({filename:name,data:data})).then(function(r){ if(!r||r.status!=='delivered') toast('파일을 저장했어요'); },function(e){
+    var c=e&&e.code;
+    toast(c==='declined'?'파일 저장을 취소했어요':c==='rate_limited'?'잠시 후 다시 눌러 주세요':'이 화면에서는 파일을 받을 수 없어요');
+  });
 }
 function noticeText(){
   var c=calc(), L=[];
@@ -900,6 +913,124 @@ function gsheetModal(){
       },function(err){ say(esc(gErr(err))); done(); });
     }
   });
+}
+
+/* ---------- PDF (외부 라이브러리 없이 직접 그리기) ---------- */
+function drawReport(){
+  var c=calc(), n=Math.max(c.maxEntries,1), W=1123, M=36, FONT='"Noto Sans KR",system-ui,sans-serif';
+  var colW=[38,0,74,44,44,92,96,10], base=colW.reduce(function(a,b){return a+b;},0), ew=Math.max(64,Math.min(84,(W-2*M-base-220)/n)), nameW=Math.max(200,W-2*M-base-ew*n);
+  colW[1]=nameW; var tableW=base+nameW+ew*n, sc=Math.min(1,(W-2*M)/tableW);
+  var rows=S.items.length+3, rh=27;
+  var H=Math.ceil(170+ (rows*rh)*sc + 300 + (S.bank.extras.length*26) + 40);
+  var cv=document.createElement('canvas'), k=2; cv.width=W*k; cv.height=H*k;
+  var g=cv.getContext('2d'); g.scale(k,k); g.fillStyle='#fff'; g.fillRect(0,0,W,H); g.textBaseline='middle';
+  function f(sz,b){g.font=(b?'700 ':'400 ')+sz+'px '+FONT;}
+  function t(x,y,s,col,al){g.fillStyle=col||'#18212d';g.textAlign=al||'left';g.fillText(s,x,y);}
+  function fit(s,w){s=String(s);if(g.measureText(s).width<=w)return s;while(s.length&&g.measureText(s+'…').width>w)s=s.slice(0,-1);return s+'…';}
+  function rich(x,y,parts){parts.forEach(function(p){f(15,p[2]);g.fillStyle=p[1]||'#18212d';g.textAlign='left';g.fillText(p[0],x,y);x+=g.measureText(p[0]).width;});}
+  var RED='#d92d2d',BLUE='#2563eb',GREEN='#15803d';
+  var y=M+14; f(26,1); t(M,y,(S.info.title||'')+' 정산 안내');
+  y+=40; rich(M,y,[['• 장 소 : '+(S.info.place||''),'',0]]);
+  y+=26; rich(M,y,[['• 기 간 : '+(c.period||''),'',0]]);
+  var gtxt=S.info.grades.filter(function(x){return num(x.count);}).map(function(x){return x.label+' '+num(x.count)+'명';}).join(', ');
+  y+=26; rich(M,y,[['• 참가 인원 : ','',0],['선수 '+c.players+'명',RED,1],[(gtxt?' ('+gtxt+')':'')+' / 지도진 '+num(S.info.coaches)+'명 / ','',0],['총 '+c.total+'명',RED,1]]);
+  y+=34; f(15,1); t(M,y,'• 주요 예산 항목'); f(12.5); t(M+130,y,'사용내역  검정: 영수증 증빙  /','#667385'); t(M+130+g.measureText('사용내역  검정: 영수증 증빙  /').width+4,y,'파랑: 체크카드·이체 (모임통장에서 확인)',BLUE);
+  y+=16;
+  // table
+  g.save(); g.translate(M,y); g.scale(sc,sc);
+  var xs=[0]; colW.forEach(function(w){xs.push(xs[xs.length-1]+w);}); for(var e=0;e<n;e++) xs.push(xs[xs.length-1]+ew);
+  var heads=['순번','내용','단가','인원','일수','금액','실제사용금액',''].concat(Array.from({length:n},function(_,i){return letter(i);}));
+  var data=S.items.map(function(it,i){var x=c.items[i];var r=[[String(i+1),'c'],[it.name,'l'],[fmt(num(it.unit)),'r'],[fmt(num(it.people)),'c'],[fmt(num(it.days)),'c'],[fmt(x.budget),'r'],[fmt(x.used),'r',x.used>x.budget?RED:null],['','']];
+    for(var e=0;e<n;e++){var en=it.entries[e];r.push([en&&num(en.amt)?fmt(num(en.amt)):'','r',en&&en.card?BLUE:null]);} return r;});
+  var tr=[[String(S.items.length+1),'c'],[S.transfer.label,'l'],['',''],['',''],['',''],['-'+fmt(c.transfer),'r'],['-','r'],['','']]; for(var e2=0;e2<n;e2++)tr.push(['','']); data.push(tr);
+  var tot=[['합 계','c'],['',''],['',''],['',''],['',''],[fmt(c.budget),'r'],[fmt(c.used),'r'],['','']];
+  for(var e3=0;e3<n;e3++){var sm=S.items.reduce(function(a,it){return a+(it.entries[e3]?num(it.entries[e3].amt):0);},0);tot.push([sm?fmt(sm):'-','r']);}
+  var all=[heads.map(function(h){return [h,'c'];})].concat(data,[tot]);
+  all.forEach(function(r,ri){
+    var yy=ri*rh, head=ri===0, last=ri===all.length-1;
+    if(head||last){g.fillStyle=head?'#f0f3f8':'#fafbfd';g.fillRect(0,yy,xs[7],rh);g.fillRect(xs[8],yy,xs[xs.length-1]-xs[8],rh);}
+    r.forEach(function(cell,ci){
+      if(ci===7)return; var x0=xs[ci],x1=xs[ci+1];
+      if(last&&ci===0){x1=xs[5];} if(last&&ci>0&&ci<5)return;
+      g.strokeStyle='#c9d1dc';g.lineWidth=1;g.strokeRect(x0+.5,yy+.5,x1-x0,rh);
+      var w=x1-x0-10, fs=12.5; f(fs,head||last); if(cell[1]!=='l'){ while(fs>8.5&&g.measureText(cell[0]).width>w){fs-=.5;f(fs,head||last);} } var s=fit(cell[0],w);
+      var tx=cell[1]==='r'?x1-6:cell[1]==='c'?(x0+x1)/2:x0+6;
+      t(tx,yy+rh/2+1,s,cell[2]||null,cell[1]==='r'?'right':cell[1]==='c'?'center':'left');
+    });
+  });
+  g.restore();
+  y+=all.length*rh*sc+28;
+  // footer left
+  var LX=M, LW=470, RX=W-M-430, RW=430, y0=y;
+  function kv(x,yy,w,a,b,col,bold,sz){f(sz||15,1);t(x,yy,a,col);f(sz||15,bold!==false);t(x+w,yy,b,col,'right');}
+  var dep=S.deposits.filter(function(d){return num(d.count);}).map(function(d){return fmt(num(d.amount))+'원×'+num(d.count)+'명';}).join(' + ');
+  [['총 예산',won(c.budget)],['선수 1인 기준 분담금',won(num(S.share))],['입금 금액 ('+c.depCount+'명)',won(c.deposit)],['이관금액 반영 총 예산',won(c.avail)],['총 사용금액',won(c.used)],['잔여금액',won(c.remain)]].forEach(function(r,i){
+    kv(LX,y+i*30,LW,'• '+r[0]+' :',r[1]);
+    g.strokeStyle='#18212d';g.beginPath();g.moveTo(LX+LW-g.measureText(r[1]).width,y+i*30+11);g.lineTo(LX+LW,y+i*30+11);g.stroke();
+  });
+  var yy=y+6*30; kv(LX,yy,LW,'• 선수 1인 기준 반환금 :',fmt(c.refundEach)+' 원',GREEN,true,16);
+  f(12.5); t(LX,yy+24,'잔여금액 ÷ '+c.players+'명 = '+fmt(c.perRefund)+'원 (실제 반환 '+fmt(c.refundEach)+'원)',GREEN);
+  if(dep){f(12);t(LX,yy+44,fit('입금 내역: '+dep,LW),'#667385');}
+  // bank box
+  var lines=[[S.bank.label,fmt(num(S.bank.start))],['입금 금액',fmt(c.deposit)],['사용 금액','('+fmt(c.used)+')',RED]];
+  S.bank.extras.forEach(function(x){var v=num(x.amount);lines.push([x.label,v<0?'('+fmt(-v)+')':fmt(v),v<0?RED:null]);});
+  lines.push(['잔여금액 반환 ('+fmt(c.refundEach)+'×'+c.players+'명)','('+fmt(c.refundTotal)+')',RED]);
+  var bh=lines.length*26+60+(S.note?26:0);
+  g.fillStyle='#fff5c2'; g.beginPath(); if(g.roundRect)g.roundRect(RX,y0-16,RW,bh,10); else g.rect(RX,y0-16,RW,bh); g.fill();
+  lines.forEach(function(l,i){f(13.5);t(RX+16,y0+4+i*26,fit(l[0],RW-150),'#18212d');f(13.5,1);t(RX+RW-16,y0+4+i*26,l[1],l[2],'right');});
+  var ly=y0+4+lines.length*26-8; g.strokeStyle='#b9a640'; g.beginPath(); g.moveTo(RX+12,ly);g.lineTo(RX+RW-12,ly);g.moveTo(RX+12,ly+3);g.lineTo(RX+RW-12,ly+3);g.stroke();
+  f(15,1); t(RX+16,ly+20,S.bank.endLabel||'최종 잔액'); t(RX+RW-16,ly+20,fmt(c.bankEnd),null,'right');
+  if(S.note){f(12);t(RX+16,ly+46,fit(S.note,RW-32),'#667385');}
+  var used=Math.max(yy+64,y0-16+bh+20); return {cv:cv,W:W,H:Math.min(H,Math.ceil(used)),k:k};
+}
+function b64bytes(b64){var s=atob(b64),a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a;}
+function buildPDF(pages){ // pages: [{jpg:Uint8Array,w,h}] → A4 landscape
+  var enc=new TextEncoder(), parts=[], off=0, xref=[];
+  function put(x){var b=typeof x==='string'?enc.encode(x):x;parts.push(b);off+=b.length;}
+  function obj(id,body){xref[id]=off;put(id+' 0 obj\n');body();put('\nendobj\n');}
+  var PW=841.89,PH=595.28,m=22,np=pages.length,kids=[];
+  for(var i=0;i<np;i++)kids.push((3+i*3)+' 0 R');
+  put('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  obj(1,function(){put('<< /Type /Catalog /Pages 2 0 R >>');});
+  obj(2,function(){put('<< /Type /Pages /Kids ['+kids.join(' ')+'] /Count '+np+' >>');});
+  pages.forEach(function(pg,i){
+    var pid=3+i*3,cid=pid+1,iid=pid+2;
+    var iw=PW-2*m, ih=iw*pg.h/pg.w; if(ih>PH-2*m){ih=PH-2*m;iw=ih*pg.w/pg.h;}
+    var cs='q '+iw.toFixed(2)+' 0 0 '+ih.toFixed(2)+' '+m+' '+(PH-m-ih).toFixed(2)+' cm /Im'+i+' Do Q';
+    obj(pid,function(){put('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 '+PW+' '+PH+'] /Resources << /XObject << /Im'+i+' '+iid+' 0 R >> >> /Contents '+cid+' 0 R >>');});
+    obj(cid,function(){put('<< /Length '+cs.length+' >>\nstream\n'+cs+'\nendstream');});
+    obj(iid,function(){put('<< /Type /XObject /Subtype /Image /Width '+pg.w+' /Height '+pg.h+' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length '+pg.jpg.length+' >>\nstream\n');put(pg.jpg);put('\nendstream');});
+  });
+  var n=3+np*3, xo=off, x='xref\n0 '+n+'\n0000000000 65535 f \n';
+  for(var j=1;j<n;j++)x+=('0000000000'+xref[j]).slice(-10)+' 00000 n \n';
+  put(x+'trailer\n<< /Size '+n+' /Root 1 0 R >>\nstartxref\n'+xo+'\n%%EOF');
+  return new Blob(parts,{type:'application/pdf'});
+}
+var pdfBusy=false;
+function makePDFBlob(){
+  return Promise.resolve(document.fonts&&document.fonts.ready).then(function(){
+    var r=drawReport(), pagePx=Math.floor(r.W*(595.28-44)/(841.89-44)), pages=[], y=0;
+    while(y<r.H){
+      var h=Math.min(pagePx,r.H-y), part=document.createElement('canvas'); part.width=r.W*r.k; part.height=h*r.k;
+      var g=part.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,part.width,part.height);
+      g.drawImage(r.cv,0,y*r.k,r.W*r.k,h*r.k,0,0,r.W*r.k,h*r.k);
+      pages.push({jpg:b64bytes(part.toDataURL('image/jpeg',0.92).split(',')[1]),w:part.width,h:part.height}); y+=h;
+    }
+    return buildPDF(pages);
+  });
+}
+function makePDF(share){
+  if(pdfBusy)return; pdfBusy=true; toast('PDF 만드는 중…');
+  var name=(S.info.title||'대회')+'_정산표.pdf';
+  makePDFBlob().then(function(blob){
+    if(share){
+      var file=new File([blob],name,{type:'application/pdf'});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        return navigator.share({files:[file],title:(S.info.title||'')+' 정산표'}).then(function(){toast('공유했어요');},function(e){ if(!e||e.name!=='AbortError') download(name,blob,'application/pdf'); });
+      }
+    }
+    download(name,blob,'application/pdf');
+  }).catch(function(){ toast('PDF를 만들지 못했어요. 다시 시도해 주세요'); }).then(function(){pdfBusy=false;});
 }
 
 var toastEl=null,toastT=null;
