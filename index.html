@@ -209,7 +209,7 @@ function sample(){
       {name:'유류비 및 기타비품',unit:1000,people:31,days:8,manual:null,entries:[E(90000,1),E(202000,1)]}
     ],
     transfer:{label:'금강 잔여금액 이관 (반환분 39,510 제외)',amount:987800},
-    share:145000,
+    share:145000, shareUnit:5000,
     deposits:[{label:'기본 분담금',amount:145000,count:25},{label:'추가 분담 (145,000+39,510)',amount:184510,count:2}],
     refundUnit:1,
     bank:{label:'금강정산 후 8/17 모임통장 잔액 (이관금액 포함)',start:4374694,endLabel:'9/9 모임통장 최종 잔액',actual:3288851,
@@ -220,7 +220,7 @@ function sample(){
 function blank(){
   return {rev:0,info:{title:'',place:'',start:'',end:'',grades:[{label:'선수',count:0}],coaches:0},
     items:[{name:'선수단 식음료비',unit:0,people:0,days:1,manual:null,entries:[]},{name:'선수단 간식비',unit:0,people:0,days:1,manual:null,entries:[]},{name:'예비비',unit:0,people:1,days:1,manual:null,entries:[]}],
-    transfer:{label:'이전 대회 잔여금 이관',amount:0},share:0,deposits:[{label:'기본 분담금',amount:0,count:0}],refundUnit:1,
+    transfer:{label:'이전 대회 잔여금 이관',amount:0},share:0,shareUnit:5000,deposits:[{label:'기본 분담금',amount:0,count:0}],refundUnit:1,
     bank:{label:'시작 통장 잔액',start:0,endLabel:'최종 통장 잔액',extras:[]},note:''};
 }
 
@@ -267,7 +267,9 @@ function calc(){
   c.used=c.items.reduce(function(a,x){return a+x.used;},0);
   c.cardUsed=c.items.reduce(function(a,x){return a+x.card;},0);
   c.perCalc=c.players?c.budget/c.players:0;
-  c.perSuggest=Math.ceil(c.perCalc/5000)*5000;
+  c.shareUnit=num(S.shareUnit)||5000;
+  c.perSuggest=Math.ceil(c.perCalc/c.shareUnit)*c.shareUnit;
+  c.collect=num(S.share)*c.players;
   c.deposit=S.deposits.reduce(function(a,d){return a+num(d.amount)*num(d.count);},0);
   c.depCount=S.deposits.reduce(function(a,d){return a+num(d.count);},0);
   c.avail=c.deposit+c.transfer;
@@ -379,8 +381,21 @@ function vBudget(){
       '<label class="f">금액을 직접 정하려면 (비우면 자동 계산)'+inp('items.'+i+'.manual',{n:1,null:1,ph2:'auto'+i})+'</label>'+
       '<button class="btn sm" data-a="del" data-l="items" data-i="'+i+'" style="color:var(--red)">이 항목 삭제</button></div></div>';
   }).join('');
-  return '<div class="hero blue"><span>총 예산</span><b data-c="budget"></b><p>선수 1명당 약 <b style="display:inline;font-size:inherit" data-c="perCalc"></b> · 항목 합계 <span data-c="itemsBudget"></span> − 이관금 <span data-c="transfer"></span></p></div>'+
-    '<p class="muted" style="margin:0 2px 10px">항목을 누르면 고칠 수 있어요.</p>'+rows+
+  var su=num(S.shareUnit)||5000;
+  return '<div class="hero blue"><span>총 예산</span><b data-c="budget"></b><p>항목 합계 <span data-c="itemsBudget"></span> − 지난 대회 남은 돈 <span data-c="transfer"></span></p></div>'+
+    (function(){ var cs=!downloadsApi && window.parent===window && navigator.canShare && navigator.share;
+      return '<div class="two" style="margin-bottom:12px"><button class="btn big" data-a="budgetJpg">예산안 JPG 저장</button>'+
+        (cs?'<button class="btn pri big" data-a="budgetJpgShare">JPG 공유</button>':'<button class="btn big" data-a="budgetJpgPreview">미리보기</button>')+'</div>'; })()+
+    '<div class="card sharecard"><h3>선수 1인 분담금</h3><p class="desc">예산을 고치면 바로 다시 계산돼요.</p>'+
+    '<div class="kv"><span>총 예산 ÷ 선수 <span data-c="players"></span></span><b data-c="perCalc"></b></div>'+
+    '<div class="kv"><span>추천 금액 <small class="muted">(올림 단위</small> <select data-p="shareUnit" data-n="1" style="width:auto;padding:4px 8px;font-size:13px">'+
+      [1000,5000,10000].map(function(u){return '<option value="'+u+'"'+(su===u?' selected':'')+'>'+fmt(u)+'원</option>';}).join('')+'</select><small class="muted">)</small></span><b class="blue" style="font-size:22px" data-c="perSuggest"></b></div>'+
+    '<div class="kv"><span>확정한 분담금</span><b data-c="shareNow"></b></div>'+
+    '<div data-c="shareCheck"></div>'+
+    '<button class="btn pri full" data-a="confirmShare" style="margin-top:10px">추천 금액으로 확정하기</button>'+
+    '<p class="muted" style="margin:8px 0 0">확정하면 정산 탭의 분담금과 입금 내역(기본 분담금 · 선수 전원)에도 들어가요.</p></div>'+
+    '<p class="muted" style="margin:14px 2px 10px">예산 항목 — 누르면 고칠 수 있어요.</p>'+
+    rows+
     '<button class="btn dash" data-a="addItem">+ 예산 항목 추가</button>'+
     '<div class="card" style="margin-top:12px"><h3>지난 대회에서 남은 돈</h3><p class="desc">이월된 돈이 있으면 적어요. 총 예산에서 빠지고, 정산할 때 모은 돈에 더해져요.</p>'+
     '<label class="f">내용'+inp('transfer.label')+'</label><label class="f">금액(원)'+inp('transfer.amount',{n:1})+'</label></div>';
@@ -418,7 +433,7 @@ function vSettle(){
       '<button class="x" data-a="del" data-l="bank.extras" data-i="'+i+'">×</button></div>';
   }).join('');
   return '<div class="hero" id="hero"><span>선수 1명당 돌려줄 돈</span><b data-c="refundEach"></b><p>남은 돈 <span data-c="remain"></span> ÷ 선수 <span data-c="players"></span> = <span data-c="perRefund"></span></p></div>'+
-    '<div class="card"><h3><span class="n">1</span>1인 분담금 정하기</h3><p class="desc">총 예산을 선수 수로 나눈 값이에요. 5,000원 단위로 올린 값을 추천해요.</p>'+
+    '<div class="card"><h3><span class="n">1</span>1인 분담금 정하기</h3><p class="desc">총 예산을 선수 수로 나눈 값이에요. 예산 탭에서 고른 단위로 올린 값을 추천해요.</p>'+
     '<div class="kv"><span>총 예산 ÷ 선수 <span data-c="players"></span></span><b data-c="perCalc"></b></div>'+
     '<div class="kv"><span>추천 금액</span><b class="blue" data-c="perSuggest"></b></div>'+
     '<label class="f" style="margin-top:10px">확정한 1인 분담금'+inp('share',{n:1})+'</label>'+
@@ -505,6 +520,7 @@ function updateCalc(){
     cardUsed:won(c.cardUsed),rcptUsed:won(c.used-c.cardUsed),deposit:won(c.deposit),depCount:c.depCount,avail:won(c.avail),
     remain:won(c.remain),perRefund:fmt(c.perRefund)+'원',refundEach:won(c.refundEach),refundTotal:won(c.refundTotal),
     refundNeg:'−'+won(c.refundTotal),leftover:won(c.leftover),bankEnd:won(c.bankEnd),
+    shareNow:num(S.share)?won(num(S.share)):'아직 안 정함',
     leftLabel:leftMode?'남은 돈':'남은 예산',leftAmt:won(leftMode?c.remain:c.budget-c.used)};
   c.items.forEach(function(x,i){
     var it=S.items[i];
@@ -518,6 +534,12 @@ function updateCalc(){
     if(k==='depCheck'){
       el.innerHTML = c.depCount===c.players ? '<div class="okbox">✓ 입금 인원 '+c.depCount+'명 = 선수 '+c.players+'명</div>'
         : '<div class="warnbox">입금 인원('+c.depCount+'명)과 선수 수('+c.players+'명)가 달라요.</div>';
+      return;
+    }
+    if(k==='shareCheck'){
+      if(!num(S.share)||!c.players){ el.innerHTML=''; return; }
+      var gap=c.collect-c.budget;
+      el.innerHTML='<div class="'+(gap>=0?'okbox':'badbox')+'">'+won(num(S.share))+' × '+c.players+'명 = <b>'+won(c.collect)+'</b> 모여요 · 예산보다 '+won(Math.abs(gap))+(gap>=0?' 여유':' 부족')+'</div>';
       return;
     }
     if(k==='bankCheck'){
@@ -616,6 +638,12 @@ root.addEventListener('click',function(e){
     case 'addItem': S.items.push({name:'',unit:0,people:c.total||0,days:1,manual:null,entries:[]}); open.budget[S.items.length-1]=true; break;
     case 'card': var en=S.items[i].entries[+b.getAttribute('data-j')]; en.card=!en.card; break;
     case 'applySuggest': S.share=c.perSuggest; break;
+    case 'confirmShare':
+      if(!c.players){ toast('대회 탭에서 선수 인원을 먼저 넣어 주세요'); return; }
+      S.share=c.perSuggest;
+      if(S.deposits.length){ S.deposits[0].amount=c.perSuggest; if(S.deposits.length===1||!num(S.deposits[0].count)) S.deposits[0].count=Math.max(0,c.players-S.deposits.slice(1).reduce(function(a,d){return a+num(d.count);},0)); }
+      else S.deposits.push({label:'기본 분담금',amount:c.perSuggest,count:c.players});
+      toast('1인 분담금 '+won(c.perSuggest)+'으로 확정했어요'); break;
     case 'shareToDeposit': if(S.deposits.length) S.deposits[0].amount=num(S.share); else S.deposits.push({label:'기본 분담금',amount:num(S.share),count:c.players}); toast('첫 번째 입금 줄에 넣었어요'); break;
     case 'save': save(); return;
     case 'menu': menu(); return;
@@ -623,6 +651,9 @@ root.addEventListener('click',function(e){
     case 'csv': csv(); return;
     case 'newEvent': confirmBox('새 대회를 시작할까요?','예시 데이터를 지우고 빈 화면에서 시작해요.',function(){ S=blank(); touch(); tab='info'; render(); window.scrollTo(0,0); }); return;
     case 'pdf': makePDF(false); return;
+    case 'budgetJpg': budgetJPG('save'); return;
+    case 'budgetJpgShare': budgetJPG('share'); return;
+    case 'budgetJpgPreview': budgetJPG('preview'); return;
     case 'pdfShare': makePDF(true); return;
     case 'gsheet': gsheetModal(); return;
     case 'discardDraft': S=published?clone(published):sample(); dirty=false; restoredDraft=false; try{localStorage.removeItem(LS_KEY);}catch(_){ } render(); return;
@@ -775,6 +806,7 @@ function sheetRows(){
   R.push(['분담금','','선수 1인 분담금',num(S.share)]);
   S.deposits.forEach(function(d){R.push(['입금','',cellTxt(d.label),num(d.amount),num(d.count)]);});
   R.push(['반환단위','','반환금 버림 단위',num(S.refundUnit)||1]);
+  R.push(['추천단위','','분담금 추천 올림 단위',num(S.shareUnit)||5000]);
   R.push(['통장시작','',cellTxt(S.bank.label),num(S.bank.start)]);
   S.bank.extras.forEach(function(x){R.push(['통장기타','',cellTxt(x.label),num(x.amount)]);});
   R.push(['통장최종','',cellTxt(S.bank.endLabel)]);
@@ -814,7 +846,7 @@ function mdRows(text){
 }
 function parseRows(rows){
   var st={rev:S.rev,info:{title:'',place:'',start:'',end:'',grades:[],coaches:0},items:[],transfer:{label:'이전 대회 잔여금 이관',amount:0},
-    share:0,deposits:[],refundUnit:1,bank:{label:'시작 통장 잔액',start:0,endLabel:'최종 통장 잔액',extras:[]},note:'',gsheet:S.gsheet||null};
+    share:0,shareUnit:5000,deposits:[],refundUnit:1,bank:{label:'시작 통장 잔액',start:0,endLabel:'최종 통장 잔액',extras:[]},note:'',gsheet:S.gsheet||null};
   var byNo={}, hits=0;
   function item(no,name){ if(!byNo[no]){ byNo[no]={name:name||('항목 '+no),unit:0,people:0,days:1,manual:null,entries:[]}; st.items.push(byNo[no]); } return byNo[no]; }
   rows.forEach(function(r){
@@ -833,6 +865,7 @@ function parseRows(rows){
       case '분담금': hits++; st.share=num(r[3]); break;
       case '입금': hits++; st.deposits.push({label:txt,amount:num(r[3]),count:num(r[4])}); break;
       case '반환단위': hits++; st.refundUnit=num(r[3])||1; break;
+      case '추천단위': hits++; st.shareUnit=num(r[3])||5000; break;
       case '통장시작': hits++; st.bank.label=txt; st.bank.start=num(r[3]); break;
       case '통장기타': hits++; st.bank.extras.push({label:txt,amount:num(r[3])}); break;
       case '통장최종': hits++; st.bank.endLabel=txt||st.bank.endLabel; break;
@@ -1031,7 +1064,79 @@ function buildPDF(pages){ // pages: [{jpg:Uint8Array,w,h}] → A4 landscape
   put(x+'trailer\n<< /Size '+n+' /Root 1 0 R >>\nstartxref\n'+xo+'\n%%EOF');
   return new Blob(parts,{type:'application/pdf'});
 }
+/* ---------- 예산안 JPG ---------- */
 var pdfBusy=false;
+function drawBudget(){
+  var c=calc(), W=1080, P=56, k=2, FONT='"Noto Sans KR",system-ui,sans-serif', rh=58;
+  var share=num(S.share)||c.perSuggest, collect=share*c.players, gap=collect-c.budget;
+  var H=300+(S.items.length+2)*rh+420;
+  var cv=document.createElement('canvas'); cv.width=W*k; cv.height=H*k;
+  var g=cv.getContext('2d'); g.scale(k,k); g.textBaseline='middle';
+  function f(sz,b){g.font=(b?'800 ':b===0?'400 ':'600 ')+sz+'px '+FONT;}
+  function t(x,y,s,col,al){g.fillStyle=col||'#18212d';g.textAlign=al||'left';g.fillText(s,x,y);}
+  function fit(s,w){s=String(s);if(g.measureText(s).width<=w)return s;while(s.length&&g.measureText(s+'…').width>w)s=s.slice(0,-1);return s+'…';}
+  function rr(x,y,w,h,r,col){g.fillStyle=col;g.beginPath();if(g.roundRect)g.roundRect(x,y,w,h,r);else g.rect(x,y,w,h);g.fill();}
+  g.fillStyle='#f3f5f8'; g.fillRect(0,0,W,H);
+  // header band
+  var grd=g.createLinearGradient(0,0,W,220); grd.addColorStop(0,'#2563eb'); grd.addColorStop(1,'#1d4fc4'); g.fillStyle=grd; g.fillRect(0,0,W,236);
+  f(26,1); t(P,58,'예산안','rgba(255,255,255,.85)');
+  f(42,1); t(P,108,fit(S.info.title||'대회',W-2*P),'#fff');
+  f(24,0); t(P,158,fit((c.period||'')+(S.info.place?'  ·  '+S.info.place:''),W-2*P),'rgba(255,255,255,.9)');
+  var gtxt=S.info.grades.filter(function(x){return num(x.count);}).map(function(x){return x.label+' '+num(x.count);}).join(' · ');
+  f(24,0); t(P,198,fit('선수 '+c.players+'명'+(gtxt?' ('+gtxt+')':'')+'  ·  지도진 '+num(S.info.coaches)+'명',W-2*P),'rgba(255,255,255,.9)');
+  // table card
+  var y=272, cw=W-2*P, th=(S.items.length+2)*rh+rh;
+  rr(P-8,y-16,cw+16,th+32,24,'#fff');
+  var cx=[P+12, P+70, P+cw-12]; // no, name start, amount right
+  f(21,1); t(cx[0],y+rh/2,'번호','#667385'); t(cx[1],y+rh/2,'항목','#667385'); t(cx[2]-300,y+rh/2,'계산','#667385','right'); t(cx[2],y+rh/2,'금액','#667385','right');
+  g.strokeStyle='#e3e8ef'; g.lineWidth=2; g.beginPath(); g.moveTo(P,y+rh); g.lineTo(P+cw,y+rh); g.stroke();
+  S.items.forEach(function(it,i){
+    var yy=y+rh*(i+1)+rh/2, x=c.items[i], manual=!(it.manual===null||it.manual===''||it.manual===undefined);
+    f(24,1); t(cx[0]+14,yy,String(i+1),'#97a1af','center');
+    f(25,1); t(cx[1],yy,fit(it.name||'(이름 없음)',cw-440));
+    f(20,0); t(cx[2]-300,yy,manual?'직접 입력':fmt(num(it.unit))+'×'+fmt(num(it.people))+'×'+fmt(num(it.days)),'#667385','right');
+    f(25,1); t(cx[2],yy,fmt(x.budget),'#18212d','right');
+    g.strokeStyle='#eef1f5'; g.beginPath(); g.moveTo(P+12,yy+rh/2); g.lineTo(P+cw-12,yy+rh/2); g.stroke();
+  });
+  var yt=y+rh*(S.items.length+1)+rh/2;
+  if(c.transfer){ f(23,0); t(cx[1],yt,fit(S.transfer.label||'지난 대회 남은 돈',cw-360),'#667385'); f(25,1); t(cx[2],yt,'−'+fmt(c.transfer),'#d92d2d','right'); }
+  else { f(23,0); t(cx[1],yt,'항목 합계','#667385'); f(25,1); t(cx[2],yt,fmt(c.itemsBudget),'#667385','right'); }
+  var ytot=yt+rh; g.strokeStyle='#18212d'; g.lineWidth=3; g.beginPath(); g.moveTo(P+12,ytot-rh/2); g.lineTo(P+cw-12,ytot-rh/2); g.stroke();
+  f(28,1); t(cx[1],ytot+4,'총 예산'); f(34,1); t(cx[2],ytot+4,won(c.budget),'#2563eb','right');
+  // share card
+  var ys=y+th+48;
+  rr(P-8,ys,cw+16,300,24,'#e7f6ec');
+  f(24,1); t(P+20,ys+44,'선수 1인 분담금','#15803d');
+  f(64,1); t(P+20,ys+112,won(share),'#15803d');
+  f(22,0); t(P+20,ys+170,'총 예산 '+won(c.budget)+' ÷ 선수 '+c.players+'명 = '+won(Math.round(c.perCalc)),'#17663a');
+  f(22,0); t(P+20,ys+206,(num(S.share)?'확정 금액':'추천 금액 ('+fmt(c.shareUnit)+'원 단위 올림)')+'  ·  '+won(share)+' × '+c.players+'명 = '+won(collect),'#17663a');
+  f(22,1); t(P+20,ys+244,c.players?('예산보다 '+won(Math.abs(gap))+(gap>=0?' 여유':' 부족')):'선수 인원을 입력해 주세요',gap>=0?'#17663a':'#d92d2d');
+  f(18,0); t(W/2,H-28,'대회 예산·정산 도우미','#a7b0bd','center');
+  return cv;
+}
+function budgetJPG(mode){
+  if(pdfBusy)return; pdfBusy=true;
+  var name=(S.info.title||'대회')+'_예산안.jpg';
+  Promise.resolve(document.fonts&&document.fonts.ready).then(function(){
+    var cv=drawBudget();
+    if(mode==='preview'){
+      var url=cv.toDataURL('image/jpeg',0.9);
+      var m=modal('<h3>예산안 미리보기</h3><img src="'+url+'" style="width:100%;border-radius:12px;display:block" alt="예산안"><p style="margin:10px 0">이미지를 길게 눌러 저장하거나 복사할 수도 있어요.</p><div class="act"><button class="btn" data-close>닫기</button><button class="btn pri" data-ok>JPG 저장</button></div>');
+      m.querySelector('[data-ok]').onclick=function(){ m.remove(); budgetJPG('save'); };
+      return;
+    }
+    return new Promise(function(ok){cv.toBlob(ok,'image/jpeg',0.92);}).then(function(blob){
+      if(mode==='share'){
+        var file=new File([blob],name,{type:'image/jpeg'});
+        if(navigator.canShare&&navigator.canShare({files:[file]})){
+          return navigator.share({files:[file],title:(S.info.title||'')+' 예산안'}).then(function(){toast('공유했어요');},function(e){ if(!e||e.name!=='AbortError') download(name,blob,'image/jpeg'); });
+        }
+      }
+      download(name,blob,'image/jpeg');
+    });
+  }).catch(function(){ toast('이미지를 만들지 못했어요. 다시 시도해 주세요'); }).then(function(){pdfBusy=false;});
+}
+
 function makePDFBlob(){
   return Promise.resolve(document.fonts&&document.fonts.ready).then(function(){
     var r=drawReport(), pagePx=Math.floor(r.W*(595.28-44)/(841.89-44)), pages=[], y=0;
