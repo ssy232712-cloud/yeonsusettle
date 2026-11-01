@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>대회 예산·정산 도우미</title>
+<meta name="description" content="예산 짜기부터 쓴 돈 기록, 1인 반환금 계산, 정산표 PDF까지 한 번에. 입력한 내용은 내 기기에만 저장돼요.">
+<meta property="og:title" content="대회 예산·정산 도우미">
+<meta property="og:description" content="예산 짜기 → 쓴 돈 기록 → 정산 → 정산표 PDF. 입력한 내용은 내 기기에만 저장돼요.">
+<meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
 <style id="css">
@@ -191,7 +195,7 @@ var LS_KEY = 'settle-app-draft-v1';
 function sample(){
   function E(a,c){return {amt:a,card:!!c,memo:''};}
   return {
-    rev:0,
+    rev:0, demo:true,
     info:{title:'2026년 경주화랑대기',place:'경주시민운동장, 축구공원, 알천구장, 에어돔',start:'2026-08-27',end:'2026-09-03',
       grades:[{label:'6학년',count:12},{label:'5학년',count:8},{label:'4학년',count:6},{label:'3학년',count:1}],coaches:5},
     items:[
@@ -214,8 +218,8 @@ function sample(){
   };
 }
 function blank(){
-  return {rev:0,info:{title:'새 대회',place:'',start:'',end:'',grades:[{label:'선수',count:0}],coaches:0},
-    items:[{name:'',unit:0,people:0,days:1,manual:null,entries:[]}],
+  return {rev:0,info:{title:'',place:'',start:'',end:'',grades:[{label:'선수',count:0}],coaches:0},
+    items:[{name:'선수단 식음료비',unit:0,people:0,days:1,manual:null,entries:[]},{name:'선수단 간식비',unit:0,people:0,days:1,manual:null,entries:[]},{name:'예비비',unit:0,people:1,days:1,manual:null,entries:[]}],
     transfer:{label:'이전 대회 잔여금 이관',amount:0},share:0,deposits:[{label:'기본 분담금',amount:0,count:0}],refundUnit:1,
     bank:{label:'시작 통장 잔액',start:0,endLabel:'최종 통장 잔액',extras:[]},note:''};
 }
@@ -332,6 +336,7 @@ function render(){
     '<button class="savebtn" data-a="save" id="savebtn"><span class="dot"></span><span id="st">저장</span></button></div>'+
     '<div class="band"><div class="b b1"><span>예산</span><b data-c="budget"></b></div><div class="b b2"><span>쓴 돈</span><b data-c="used"></b></div>'+
     '<div class="b b3" id="b3"><span data-c="leftLabel"></span><b data-c="leftAmt"></b></div></div></header><main>';
+  if(S.demo) h+='<div class="banner"><span>지금 보시는 건 <b>예시 데이터</b>예요. 내 대회를 정산하려면 새로 시작하세요.</span><button class="btn sm pri" data-a="newEvent">새 대회 시작</button></div>';
   if(restoredDraft) h+='<div class="banner"><span>저장하지 않은 변경 내용을 이 기기에서 불러왔어요.</span><button class="btn sm" data-a="discardDraft">마지막 저장본으로</button></div>';
   h+=intro(tab)+({info:vInfo,budget:vBudget,usage:vUsage,settle:vSettle,report:vReport}[tab])()+stepnav(tab);
   h+='</main><nav class="bnav"><div class="in">'+NAV.map(function(t){
@@ -616,6 +621,7 @@ root.addEventListener('click',function(e){
     case 'menu': menu(); return;
     case 'notice': showCopy('공지 문구',noticeText()); return;
     case 'csv': csv(); return;
+    case 'newEvent': confirmBox('새 대회를 시작할까요?','예시 데이터를 지우고 빈 화면에서 시작해요.',function(){ S=blank(); touch(); tab='info'; render(); window.scrollTo(0,0); }); return;
     case 'pdf': makePDF(false); return;
     case 'pdfShare': makePDF(true); return;
     case 'gsheet': gsheetModal(); return;
@@ -661,6 +667,7 @@ function modal(html,cls){
 }
 function menu(){
   var m=modal('<h3>더보기</h3><p>백업·불러오기와 새 대회 만들기</p><div class="grid">'+
+    '<button class="btn" data-m="shareapp">이 앱 링크 공유하기</button>'+
     '<button class="btn pri" data-m="gsheet">구글시트 내보내기·불러오기</button><button class="btn" data-m="notice">공지 문구 복사</button>'+
     '<button class="btn" data-m="backup">백업 파일(JSON) 받기</button>'+
     '<button class="btn" data-m="copyjson">백업 내용 복사</button>'+
@@ -673,6 +680,7 @@ function menu(){
     var b=e.target.closest('[data-m]'); if(!b)return; var k=b.getAttribute('data-m');
     if(k==='backup'){ download((S.info.title||'정산')+'_백업.json',JSON.stringify(S,null,1),'application/json'); }
     if(k==='gsheet'){ m.remove(); gsheetModal(); return; }
+    if(k==='shareapp'){ m.remove(); shareApp(); return; }
     if(k==='notice'){ m.remove(); showCopy('공지 문구',noticeText()); return; }
     if(k==='copyjson'){ m.remove(); showCopy('백업 내용',JSON.stringify(S)); return; }
     if(k==='paste'){ m.remove(); pasteImport(); return; }
@@ -915,6 +923,23 @@ function gsheetModal(){
   });
 }
 
+function shareApp(){
+  var url=location.href.split('#')[0], top=window.parent===window;
+  if(!top||/claude\.ai|claudeusercontent/.test(location.host)) url='https://ssy232712-cloud.github.io/yeonsusettle/';
+  var txt='대회 예산·정산 도우미예요. 입력한 내용은 각자 기기에만 저장돼요.';
+  if(top&&navigator.share){ navigator.share({title:'대회 예산·정산 도우미',text:txt,url:url}).catch(function(){}); return; }
+  showCopy('앱 링크 공유',txt+'\n'+url);
+}
+function welcome(){
+  var m=modal('<h3>대회 예산·정산 도우미</h3><p>예산 짜기 → 쓴 돈 기록 → 정산 → 정산표 PDF까지 순서대로 안내해 드려요.<br><b>입력한 내용은 이 기기(브라우저)에만 저장</b>되고 다른 사람에게 보이지 않아요.</p>'+
+    '<div class="grid"><button class="btn pri big" data-w="new">새 대회 만들기</button><button class="btn big" data-w="demo">예시로 먼저 둘러보기</button></div>','sheetbg');
+  m.addEventListener('click',function(e){
+    var b=e.target.closest('[data-w]'); if(!b)return;
+    if(b.getAttribute('data-w')==='new'){ S=blank(); tab='info'; touch(); render(); }
+    m.remove();
+  });
+}
+
 /* ---------- PDF (외부 라이브러리 없이 직접 그리기) ---------- */
 function drawReport(){
   var c=calc(), n=Math.max(c.maxEntries,1), W=1123, M=36, FONT='"Noto Sans KR",system-ui,sans-serif';
@@ -1040,6 +1065,7 @@ window.addEventListener('hashchange',function(){var t=location.hash.replace('#',
 window.addEventListener('beforeunload',function(){ try{ if(dirty) localStorage.setItem(LS_KEY,JSON.stringify({baseRev:published?published.rev:-1,state:S})); }catch(e){} });
 
 render();
+if(!published && !restoredDraft && window.parent===window) welcome();
 if(window.claude && typeof window.claude.use==='function'){
   window.claude.use('artifact').then(function(a){artifactApi=a;updateStatus();},function(){});
   window.claude.use('downloads').then(function(d){downloadsApi=d;},function(){});
