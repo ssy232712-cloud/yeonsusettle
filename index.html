@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>대회 예산·정산 도우미</title>
-<meta name="description" content="예산 짜기부터 쓴 돈 기록, 1인 반환금 계산, 정산표 PDF까지 한 번에. 입력한 내용은 내 기기에만 저장돼요.">
+<meta name="description" content="예산 짜기부터 쓴 돈 기록, 1인 반환금 계산, 정산표 이미지까지 한 번에. 입력한 내용은 내 기기에만 저장돼요.">
 <meta property="og:title" content="대회 예산·정산 도우미">
-<meta property="og:description" content="예산 짜기 → 쓴 돈 기록 → 정산 → 정산표 PDF. 입력한 내용은 내 기기에만 저장돼요.">
+<meta property="og:description" content="예산 짜기 → 쓴 돈 기록 → 정산 → 정산표 이미지. 입력한 내용은 내 기기에만 저장돼요.">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
@@ -322,7 +322,7 @@ var STEP={info:['1단계','대회 정보','대회 이름과 날짜, 참가 인�
   budget:['2단계','예산 짜기','항목마다 단가 × 인원 × 일수를 넣으면 금액이 자동으로 계산돼요.'],
   usage:['3단계','쓴 돈 기록','영수증이나 카드 사용 내역을 하나씩 기록해요. 아래 주황 버튼을 누르면 돼요.'],
   settle:['4단계','정산하기','모은 돈에서 쓴 돈을 빼고, 선수 1명당 돌려줄 돈을 계산해요.'],
-  report:['5단계','정산표','학부모님께 보낼 정산표예요. 공지 문구 복사나 구글시트로 내보낼 수 있어요.']};
+  report:['5단계','정산표','학부모님께 보낼 정산표예요. 이미지로 저장해 단톡방에 올려요.']};
 var NAV=[['info','대회'],['budget','예산'],['usage','지출'],['settle','정산'],['report','정산표']];
 function intro(k){var s=STEP[k];return '<div class="intro"><span class="stepno">'+s[0]+'</span><h2>'+s[1]+'</h2><p>'+s[2]+'</p></div>';}
 function stepnav(k){
@@ -466,10 +466,10 @@ function vSettle(){
 
 function vReport(){
   var canShare=!downloadsApi && window.parent===window && navigator.canShare && navigator.share;
-  return '<div class="card"><h3>정산표 내보내기</h3><p class="desc">PDF로 저장해서 단톡방에 올리거나, 공지 문구를 복사해 붙여넣으세요.</p>'+
-    '<div class="two"><button class="btn pri big" data-a="pdf">PDF 저장</button>'+
-    (canShare?'<button class="btn big" data-a="pdfShare">PDF 공유</button>':'<button class="btn big" data-a="notice">공지 문구 복사</button>')+'</div>'+
-    '<div class="row-actions" style="margin-top:8px">'+(canShare?'<button class="btn sm" data-a="notice">공지 문구 복사</button>':'')+
+  return '<div class="card"><h3>정산표 내보내기</h3><p class="desc">정산표를 JPG 이미지로 저장해서 단톡방에 올리거나, 공지 문구를 복사해 붙여넣으세요.</p>'+
+    '<div class="two"><button class="btn big" data-a="reportJpg">정산표 JPG 저장</button>'+
+    (canShare?'<button class="btn pri big" data-a="reportJpgShare">JPG 공유</button>':'<button class="btn pri big" data-a="reportJpgPreview">미리보기</button>')+'</div>'+
+    '<div class="row-actions" style="margin-top:8px"><button class="btn sm" data-a="notice">공지 문구 복사</button>'+
     '<button class="btn sm" data-a="gsheet">구글시트</button><button class="btn sm" data-a="csv">엑셀(CSV)</button></div></div>'+
     '<p class="muted" style="margin:0 2px 8px">미리보기 (옆으로 밀어서 볼 수 있어요)</p>'+reportSheet();
 }
@@ -650,11 +650,12 @@ root.addEventListener('click',function(e){
     case 'notice': showCopy('공지 문구',noticeText()); return;
     case 'csv': csv(); return;
     case 'newEvent': confirmBox('새 대회를 시작할까요?','예시 데이터를 지우고 빈 화면에서 시작해요.',function(){ S=blank(); touch(); tab='info'; render(); window.scrollTo(0,0); }); return;
-    case 'pdf': makePDF(false); return;
+    case 'reportJpg': reportJPG('save'); return;
+    case 'reportJpgShare': reportJPG('share'); return;
+    case 'reportJpgPreview': reportJPG('preview'); return;
     case 'budgetJpg': budgetJPG('save'); return;
     case 'budgetJpgShare': budgetJPG('share'); return;
     case 'budgetJpgPreview': budgetJPG('preview'); return;
-    case 'pdfShare': makePDF(true); return;
     case 'gsheet': gsheetModal(); return;
     case 'discardDraft': S=published?clone(published):sample(); dirty=false; restoredDraft=false; try{localStorage.removeItem(LS_KEY);}catch(_){ } render(); return;
     default: return;
@@ -964,7 +965,7 @@ function shareApp(){
   showCopy('앱 링크 공유',txt+'\n'+url);
 }
 function welcome(){
-  var m=modal('<h3>대회 예산·정산 도우미</h3><p>예산 짜기 → 쓴 돈 기록 → 정산 → 정산표 PDF까지 순서대로 안내해 드려요.<br><b>입력한 내용은 이 기기(브라우저)에만 저장</b>되고 다른 사람에게 보이지 않아요.</p>'+
+  var m=modal('<h3>대회 예산·정산 도우미</h3><p>예산 짜기 → 쓴 돈 기록 → 정산 → 정산표 이미지까지 순서대로 안내해 드려요.<br><b>입력한 내용은 이 기기(브라우저)에만 저장</b>되고 다른 사람에게 보이지 않아요.</p>'+
     '<div class="grid"><button class="btn pri big" data-w="new">새 대회 만들기</button><button class="btn big" data-w="demo">예시로 먼저 둘러보기</button></div>','sheetbg');
   m.addEventListener('click',function(e){
     var b=e.target.closest('[data-w]'); if(!b)return;
@@ -1114,22 +1115,27 @@ function drawBudget(){
   f(18,0); t(W/2,H-28,'대회 예산·정산 도우미','#a7b0bd','center');
   return cv;
 }
-function budgetJPG(mode){
+function budgetJPG(mode){ imageOut(mode,drawBudget,'예산안',budgetJPG); }
+function reportJPG(mode){ imageOut(mode,function(){
+  var r=drawReport(), cv=document.createElement('canvas'); cv.width=r.W*r.k; cv.height=r.H*r.k;
+  var g=cv.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height); g.drawImage(r.cv,0,0); return cv;
+},'정산표',reportJPG); }
+function imageOut(mode,draw,kind,again){
   if(pdfBusy)return; pdfBusy=true;
-  var name=(S.info.title||'대회')+'_예산안.jpg';
+  var name=(S.info.title||'대회')+'_'+kind+'.jpg';
   Promise.resolve(document.fonts&&document.fonts.ready).then(function(){
-    var cv=drawBudget();
+    var cv=draw();
     if(mode==='preview'){
       var url=cv.toDataURL('image/jpeg',0.9);
-      var m=modal('<h3>예산안 미리보기</h3><img src="'+url+'" style="width:100%;border-radius:12px;display:block" alt="예산안"><p style="margin:10px 0">이미지를 길게 눌러 저장하거나 복사할 수도 있어요.</p><div class="act"><button class="btn" data-close>닫기</button><button class="btn pri" data-ok>JPG 저장</button></div>');
-      m.querySelector('[data-ok]').onclick=function(){ m.remove(); budgetJPG('save'); };
+      var m=modal('<h3>'+kind+' 미리보기</h3><img src="'+url+'" style="width:100%;border-radius:12px;display:block;border:1px solid var(--line)" alt="'+kind+'"><p style="margin:10px 0">이미지를 길게 눌러 저장하거나 복사할 수도 있어요.</p><div class="act"><button class="btn" data-close>닫기</button><button class="btn pri" data-ok>JPG 저장</button></div>');
+      m.querySelector('[data-ok]').onclick=function(){ m.remove(); again('save'); };
       return;
     }
     return new Promise(function(ok){cv.toBlob(ok,'image/jpeg',0.92);}).then(function(blob){
       if(mode==='share'){
         var file=new File([blob],name,{type:'image/jpeg'});
         if(navigator.canShare&&navigator.canShare({files:[file]})){
-          return navigator.share({files:[file],title:(S.info.title||'')+' 예산안'}).then(function(){toast('공유했어요');},function(e){ if(!e||e.name!=='AbortError') download(name,blob,'image/jpeg'); });
+          return navigator.share({files:[file],title:(S.info.title||'')+' '+kind}).then(function(){toast('공유했어요');},function(e){ if(!e||e.name!=='AbortError') download(name,blob,'image/jpeg'); });
         }
       }
       download(name,blob,'image/jpeg');
