@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>대회 예산·정산 도우미</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;800&display=swap">
+<style id="css">
+:root{
+  --bg:#f4f6f9; --card:#fff; --ink:#1b2430; --sub:#5f6b7a; --line:#e2e7ee;
+  --pri:#1f6fd1; --pri-soft:#e8f1fd; --red:#d93838; --green:#1d8a4a; --yellow:#fff3b0;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Noto Sans KR",system-ui,sans-serif;font-size:15px;-webkit-text-size-adjust:100%}
+.num,input.n{font-variant-numeric:tabular-nums}
+header.top{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid var(--line)}
+.top-in{max-width:1100px;margin:0 auto;padding:12px 16px 0}
+.title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.title-row h1{font-size:18px;margin:0;font-weight:800;flex:1;min-width:180px}
+.badge{font-size:12px;padding:3px 8px;border-radius:99px;background:var(--pri-soft);color:var(--pri);font-weight:700}
+.badge.warn{background:#fdecec;color:var(--red)}
+nav.tabs{display:flex;gap:4px;overflow-x:auto;margin-top:10px;scrollbar-width:none}
+nav.tabs::-webkit-scrollbar{display:none}
+nav.tabs button{flex:none;border:0;background:none;padding:10px 12px;font:inherit;font-weight:700;color:var(--sub);border-bottom:3px solid transparent;cursor:pointer}
+nav.tabs button.on{color:var(--pri);border-color:var(--pri)}
+main{max-width:1100px;margin:0 auto;padding:16px 16px 120px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.card h2{font-size:16px;margin:0 0 12px;font-weight:800;display:flex;align-items:center;gap:8px}
+.card h2 small{font-weight:500;color:var(--sub);font-size:12.5px}
+.grid{display:grid;gap:10px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--sub);font-weight:500}
+input,select{font:inherit;color:var(--ink);border:1px solid var(--line);background:#fff;border-radius:9px;padding:9px 10px;width:100%;min-width:0}
+input:focus,select:focus{outline:2px solid var(--pri);outline-offset:-1px;border-color:transparent}
+input.n{text-align:right}
+button.btn{font:inherit;font-weight:700;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 13px;cursor:pointer;color:var(--ink);white-space:nowrap}
+button.btn:hover{background:#f7f9fc}
+button.pri{background:var(--pri);border-color:var(--pri);color:#fff}
+button.pri:hover{background:#1a5fb4}
+button:disabled{opacity:.45;cursor:default}
+button.sm{padding:6px 10px;font-size:13px;border-radius:8px}
+button.ghost{border-color:transparent;background:none;color:var(--sub)}
+button.x{border:0;background:none;color:#a0a9b5;font-size:20px;line-height:1;padding:4px 6px;cursor:pointer}
+button.x:hover{color:var(--red)}
+.row-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.muted{color:var(--sub);font-size:13px}
+.kv{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px dashed var(--line);gap:10px}
+.kv:last-child{border-bottom:0}
+.kv b{font-size:16px}
+.kv.big b{font-size:20px}
+.pos{color:var(--green)} .neg{color:var(--red)} .blue{color:var(--pri)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat span{display:block;font-size:12px;color:var(--sub)}
+.stat b{font-size:19px;font-weight:800}
+.stat.hl{background:#eaf7ef;border-color:#c6e8d3}
+.stat.hl b{color:var(--green)}
+/* budget rows */
+.brow{display:grid;grid-template-columns:1fr;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px;background:#fbfcfe}
+.brow .top{display:flex;gap:8px;align-items:center}
+.brow .top .no{font-weight:800;color:var(--sub);width:22px;text-align:center}
+.brow .nums{display:grid;grid-template-columns:1.2fr .7fr .7fr 1.3fr;gap:8px}
+.brow .nums label{font-size:11.5px}
+@media (max-width:520px){.brow .nums{grid-template-columns:1fr 1fr 1fr}.brow .nums .amt{grid-column:1/-1}}
+/* usage */
+.ucard{border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden;background:#fff}
+.uhead{padding:12px 14px;background:#fbfcfe;border-bottom:1px solid var(--line)}
+.uhead .t{display:flex;justify-content:space-between;gap:8px;font-weight:800}
+.bar{height:7px;border-radius:9px;background:#e9edf3;margin:8px 0 4px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--pri);border-radius:9px}
+.bar i.over{background:var(--red)}
+.uhead .meta{display:flex;justify-content:space-between;font-size:12.5px;color:var(--sub)}
+.ubody{padding:8px 14px 12px}
+.erow{display:grid;grid-template-columns:28px 1.1fr 1.4fr auto auto;gap:6px;align-items:center;padding:4px 0}
+.erow .lt{font-weight:800;color:var(--sub);text-align:center;font-size:13px}
+@media (max-width:520px){.erow{grid-template-columns:24px 1fr auto auto}.erow .memo{grid-column:2/-1;order:5}}
+.chip{border:1px solid var(--line);background:#fff;border-radius:99px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--sub);white-space:nowrap}
+.chip.card{background:var(--pri-soft);border-color:#bcd6f7;color:var(--pri)}
+.erow.card input.amt{color:var(--pri);font-weight:700}
+/* deposit / extras */
+.drow{display:grid;grid-template-columns:1.6fr 1fr .6fr auto;gap:6px;align-items:center;margin-bottom:6px}
+.xrow{display:grid;grid-template-columns:1.6fr 1fr auto;gap:6px;align-items:center;margin-bottom:6px}
+.grow{display:grid;grid-template-columns:1.4fr .8fr auto;gap:6px;align-items:center;margin-bottom:6px}
+.hdr{font-size:11.5px;color:var(--sub);font-weight:700;margin-bottom:4px}
+.yellow{background:var(--yellow);border-color:#f1dc6b}
+.warnbox{background:#fff6e5;border:1px solid #f5d79a;color:#8a5a00;border-radius:10px;padding:9px 12px;font-size:13px;margin-top:8px}
+.okbox{background:#eaf7ef;border:1px solid #c6e8d3;color:#17663a;border-radius:10px;padding:9px 12px;font-size:13px;margin-top:8px}
+/* report */
+.sheet{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px;overflow-x:auto}
+.sheet h3{font-size:22px;margin:0 0 14px;font-weight:800}
+.sheet ul.info{list-style:none;padding:0;margin:0 0 18px;line-height:1.9}
+.sheet ul.info li::before{content:"• ";font-weight:800}
+table.rep{border-collapse:collapse;font-size:13.5px;min-width:900px;width:100%}
+table.rep th,table.rep td{border:1px solid #cfd6df;padding:6px 8px;white-space:nowrap}
+table.rep th{background:#f3f6fa;font-weight:700;text-align:center}
+table.rep td.r{text-align:right}
+table.rep td.c{text-align:center}
+table.rep td.sep,table.rep th.sep{border-top:0;border-bottom:0;background:#fff;width:12px;padding:0}
+table.rep tr.tot td{font-weight:800;background:#fafbfd}
+.repfoot{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:20px;min-width:900px}
+.repfoot .kv{padding:6px 0}
+.repfoot .bank{background:var(--yellow);border-radius:10px;padding:12px 16px}
+.repfoot .bank .kv{border-bottom-color:#e6d27a}
+.legend{font-size:12.5px;color:var(--sub);margin-top:6px}
+/* toast / modal */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#1b2430;color:#fff;padding:11px 16px;border-radius:12px;font-size:14px;z-index:99;opacity:0;transition:.25s;pointer-events:none;max-width:90vw}
+.toast.on{opacity:1}
+.modal-bg{position:fixed;inset:0;background:rgba(15,23,35,.45);display:flex;align-items:center;justify-content:center;z-index:90;padding:16px}
+.modal{background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%}
+.modal h3{margin:0 0 8px}
+.modal p{color:var(--sub);margin:0 0 16px;line-height:1.6;font-size:14px}
+.modal .act{display:flex;gap:8px;justify-content:flex-end}
+textarea.copy{width:100%;height:220px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:10px;padding:10px}
+.banner{background:var(--pri-soft);border:1px solid #bcd6f7;border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:13.5px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.banner span{flex:1;min-width:200px}
+.savebar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);z-index:30;padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.savebar .in{max-width:1100px;margin:0 auto;display:flex;gap:8px;align-items:center}
+.savebar .st{flex:1;font-size:13px;color:var(--sub)}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="application/json" id="state">null</script>
+<script id="app">
+(function(){
+"use strict";
+var CSS = document.getElementById('css').textContent;
+var APP = document.getElementById('app').textContent;
+var LS_KEY = 'settle-app-draft-v1';
+
+/* ---------- 예시 데이터 (2026 경주화랑대기) ---------- */
+function sample(){
+  function E(a,c){return {amt:a,card:!!c,memo:''};}
+  return {
+    rev:0,
+    info:{title:'2026년 경주화랑대기',place:'경주시민운동장, 축구공원, 알천구장, 에어돔',start:'2026-08-27',end:'2026-09-03',
+      grades:[{label:'6학년',count:12},{label:'5학년',count:8},{label:'4학년',count:6},{label:'3학년',count:1}],coaches:5},
+    items:[
+      {name:'선수단 식음료비 (물,음료,얼음)',unit:4000,people:31,days:8,manual:null,entries:[E(100000,1),E(13800,1),E(125000,1),E(10000),E(18700),E(13100),E(237530)]},
+      {name:'선수단 간식비',unit:4000,people:31,days:8,manual:null,entries:[E(112000,1),E(422360),E(77220),E(32400)]},
+      {name:'선수단 세탁비 (1일2회 예상)',unit:35000,people:1,days:7,manual:null,entries:[E(50000),E(50000),E(25000),E(15000),E(13000),E(20000)]},
+      {name:'선수단 약품비 (비상약 구입 외)',unit:1000,people:31,days:8,manual:null,entries:[E(33000,1),E(26220)]},
+      {name:'선수단 특식비 외 추가식사비',unit:40000,people:31,days:1,manual:null,entries:[E(64500,1),E(188000,1),E(38280,1),E(39000,1),E(49000,1),E(156000,1),E(84000)]},
+      {name:'선수단 사우나',unit:10000,people:31,days:1,manual:null,entries:[E(216000,1)]},
+      {name:'선수단 예비비 및 활동경비',unit:500000,people:1,days:1,manual:null,entries:[E(500000,1)]},
+      {name:'유류비 및 기타비품',unit:1000,people:31,days:8,manual:null,entries:[E(90000,1),E(202000,1)]}
+    ],
+    transfer:{label:'금강 잔여금액 이관 (반환분 39,510 제외)',amount:987800},
+    share:145000,
+    deposits:[{label:'기본 분담금',amount:145000,count:25},{label:'추가 분담 (145,000+39,510)',amount:184510,count:2}],
+    refundUnit:1,
+    bank:{label:'금강정산 후 8/17 모임통장 잔액 (이관금액 포함)',start:4374694,endLabel:'9/9 모임통장 최종 잔액',
+      extras:[{label:'화랑대기 별도 공용통장 사용금액',amount:-102760},{label:'체크카드 캐시백 / 이자',amount:4693}]},
+    note:'※ 2026 연수구청 모임통장에서 확인하실 수 있습니다.'
+  };
+}
+function blank(){
+  return {rev:0,info:{title:'새 대회',place:'',start:'',end:'',grades:[{label:'선수',count:0}],coaches:0},
+    items:[{name:'',unit:0,people:0,days:1,manual:null,entries:[]}],
+    transfer:{label:'이전 대회 잔여금 이관',amount:0},share:0,deposits:[{label:'기본 분담금',amount:0,count:0}],refundUnit:1,
+    bank:{label:'시작 통장 잔액',start:0,endLabel:'최종 통장 잔액',extras:[]},note:''};
+}
+
+/* ---------- state ---------- */
+var published = null;
+try{ published = JSON.parse(document.getElementById('state').textContent); }catch(e){}
+var LS_SAVED='settle-app-saved-v1';
+if(!published){ try{ var sv=JSON.parse(localStorage.getItem(LS_SAVED)||'null'); if(sv&&sv.info&&sv.items) published=sv; }catch(e){} }
+var S = published ? clone(published) : sample();
+var dirty = false, restoredDraft = false;
+try{
+  var d = JSON.parse(localStorage.getItem(LS_KEY)||'null');
+  if(d && d.state && d.baseRev === (published?published.rev:-1) && JSON.stringify(d.state)!==JSON.stringify(S)){
+    S = d.state; dirty = true; restoredDraft = true;
+  }
+}catch(e){}
+var tab = (location.hash||'').replace('#','') || 'info';
+var TABS=[['info','기본정보'],['budget','예산'],['usage','사용내역'],['settle','정산'],['report','정산표']];
+if(!TABS.some(function(t){return t[0]===tab;})) tab='info';
+var artifactApi=null, downloadsApi=null;
+
+function clone(o){return JSON.parse(JSON.stringify(o));}
+function num(v){ if(v===null||v===undefined||v==='')return 0; var n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isFinite(n)?n:0; }
+function fmt(n){ n=Math.round(n*10)/10; var neg=n<0; n=Math.abs(n); var p=String(n).split('.'); p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,','); return (neg?'-':'')+p.join('.'); }
+function won(n){return fmt(n)+'원';}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function letter(i){var s='';i++;while(i>0){var m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;}
+
+/* ---------- calc ---------- */
+function calc(){
+  var c={};
+  c.players=S.info.grades.reduce(function(a,g){return a+num(g.count);},0);
+  c.total=c.players+num(S.info.coaches);
+  c.items=S.items.map(function(it){
+    var auto=num(it.unit)*num(it.people)*num(it.days);
+    var budget=(it.manual===null||it.manual===''||it.manual===undefined)?auto:num(it.manual);
+    var used=it.entries.reduce(function(a,e){return a+num(e.amt);},0);
+    var card=it.entries.reduce(function(a,e){return a+(e.card?num(e.amt):0);},0);
+    return {auto:auto,budget:budget,used:used,card:card,diff:budget-used};
+  });
+  c.itemsBudget=c.items.reduce(function(a,x){return a+x.budget;},0);
+  c.transfer=num(S.transfer.amount);
+  c.budget=c.itemsBudget-c.transfer;
+  c.used=c.items.reduce(function(a,x){return a+x.used;},0);
+  c.cardUsed=c.items.reduce(function(a,x){return a+x.card;},0);
+  c.perCalc=c.players?c.budget/c.players:0;
+  c.perSuggest=Math.ceil(c.perCalc/5000)*5000;
+  c.deposit=S.deposits.reduce(function(a,d){return a+num(d.amount)*num(d.count);},0);
+  c.depCount=S.deposits.reduce(function(a,d){return a+num(d.count);},0);
+  c.avail=c.deposit+c.transfer;
+  c.remain=c.avail-c.used;
+  c.perRefund=c.players?c.remain/c.players:0;
+  var u=num(S.refundUnit)||1;
+  c.refundEach=c.perRefund>=0?Math.floor(c.perRefund/u)*u:0;
+  c.refundTotal=c.refundEach*c.players;
+  c.leftover=c.remain-c.refundTotal;
+  c.extras=S.bank.extras.reduce(function(a,x){return a+num(x.amount);},0);
+  c.bankEnd=num(S.bank.start)+c.deposit-c.used+c.extras-c.refundTotal;
+  c.maxEntries=S.items.reduce(function(a,it){return Math.max(a,it.entries.length);},0);
+  var nd=period();
+  c.period=nd;
+  return c;
+}
+function period(){
+  var a=S.info.start,b=S.info.end; if(!a||!b) return '';
+  var d1=new Date(a+'T00:00:00'),d2=new Date(b+'T00:00:00'); var n=Math.round((d2-d1)/864e5);
+  if(!(n>=0)) return '';
+  function k(d){return (d.getMonth()+1)+'월 '+d.getDate()+'일';}
+  return d1.getFullYear()+'년 '+k(d1)+' ~ '+k(d2)+' ('+n+'박'+(n+1)+'일)';
+}
+
+/* ---------- path helpers ---------- */
+function getP(p){return p.split('.').reduce(function(o,k){return o==null?o:o[k];},S);}
+function setP(p,v){var ks=p.split('.'),o=S;for(var i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks[ks.length-1]]=v;}
+function inp(p,o){
+  o=o||{}; var v=getP(p);
+  if(o.n){ v=(v===null||v===undefined||v==='')?'':fmt(v); }
+  return '<input data-p="'+p+'"'+(o.n?' data-n="1" class="n" inputmode="decimal"':'')+(o.null?' data-null="1"':'')+
+    (o.type?' type="'+o.type+'"':'')+' value="'+esc(v)+'"'+(o.ph?' placeholder="'+esc(o.ph)+'"':'')+(o.ph2?' data-ph="'+o.ph2+'"':'')+(o.aria?' aria-label="'+esc(o.aria)+'"':'')+'>';
+}
+function C(key,cls){return '<b class="num '+(cls||'')+'" data-c="'+key+'"></b>';}
+
+/* ---------- render ---------- */
+var root=document.getElementById('root');
+function render(){
+  var y=window.scrollY;
+  var h='<header class="top"><div class="top-in"><div class="title-row"><h1>'+esc(S.info.title||'대회')+' 예산·정산</h1>'+
+    '<span class="badge" data-c="hdrRemain"></span></div><nav class="tabs">'+
+    TABS.map(function(t){return '<button data-a="tab" data-t="'+t[0]+'" class="'+(tab===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+
+    '</nav></div></header><main>';
+  if(restoredDraft) h+='<div class="banner"><span>저장하지 않은 변경 내용을 이 기기에서 불러왔어요.</span><button class="btn sm" data-a="discardDraft">마지막 저장본으로 되돌리기</button></div>';
+  h+=({info:vInfo,budget:vBudget,usage:vUsage,settle:vSettle,report:vReport}[tab])();
+  h+='</main><div class="savebar"><div class="in"><span class="st" id="st"></span>'+
+     '<button class="btn sm" data-a="menu">더보기</button><button class="btn sm" data-a="gsheet">구글시트</button><button class="btn pri sm" data-a="save">저장</button></div></div>';
+  root.innerHTML=h;
+  updateCalc(); updateStatus();
+  window.scrollTo(0,y);
+}
+
+function vInfo(){
+  var g=S.info.grades.map(function(x,i){
+    return '<div class="grow">'+inp('info.grades.'+i+'.label',{aria:'구분'})+inp('info.grades.'+i+'.count',{n:1,aria:'인원'})+
+      '<button class="x" data-a="del" data-l="info.grades" data-i="'+i+'" aria-label="삭제">×</button></div>';
+  }).join('');
+  return '<div class="card"><h2>대회 정보</h2><div class="grid g2">'+
+    '<label class="f">대회명'+inp('info.title')+'</label>'+
+    '<label class="f">장소'+inp('info.place')+'</label>'+
+    '<label class="f">시작일'+inp('info.start',{type:'date'})+'</label>'+
+    '<label class="f">종료일'+inp('info.end',{type:'date'})+'</label></div>'+
+    '<p class="muted" style="margin:10px 0 0">기간: <b data-c="period" class="blue"></b></p></div>'+
+    '<div class="card"><h2>참가 인원 <small>선수 학년별 + 지도진</small></h2>'+
+    '<div class="grow hdr"><span>구분</span><span>인원</span><span></span></div>'+g+
+    '<button class="btn sm" data-a="add" data-l="info.grades">+ 구분 추가</button>'+
+    '<div class="grid g2" style="margin-top:12px"><label class="f">지도진 수'+inp('info.coaches',{n:1})+'</label></div>'+
+    '<div style="margin-top:12px"><div class="kv"><span>선수</span>'+C('players')+'</div><div class="kv"><span>총 인원</span>'+C('total')+'</div></div>'+
+    '<p class="muted">반환금은 선수 수로 나눠 계산합니다.</p></div>'+
+    '<div class="card"><h2>메모 <small>정산표 하단에 표시</small></h2>'+inp('note',{ph:'예: 모임통장에서 확인하실 수 있습니다.'})+'</div>';
+}
+
+function vBudget(){
+  var rows=S.items.map(function(it,i){
+    return '<div class="brow"><div class="top"><span class="no">'+(i+1)+'</span>'+inp('items.'+i+'.name',{ph:'항목명',aria:'항목명'})+
+      '<button class="x" data-a="del" data-l="items" data-i="'+i+'" aria-label="삭제">×</button></div>'+
+      '<div class="nums"><label class="f">단가'+inp('items.'+i+'.unit',{n:1})+'</label><label class="f">인원'+inp('items.'+i+'.people',{n:1})+'</label>'+
+      '<label class="f">일수'+inp('items.'+i+'.days',{n:1})+'</label><label class="f amt">금액 (비우면 자동계산)'+inp('items.'+i+'.manual',{n:1,null:1,ph2:'auto'+i})+'</label></div></div>';
+  }).join('');
+  return '<div class="stats"><div class="stat"><span>항목 합계</span>'+C('itemsBudget')+'</div><div class="stat"><span>이관금액</span>'+C('transferNeg','neg')+'</div>'+
+    '<div class="stat hl"><span>총 예산</span>'+C('budget')+'</div><div class="stat"><span>선수 1인 계산값</span>'+C('perCalc')+'</div></div>'+
+    '<div class="card"><h2>예산 항목 <small>단가 × 인원 × 일수</small></h2>'+rows+
+    '<div class="row-actions"><button class="btn" data-a="addItem">+ 항목 추가</button></div></div>'+
+    '<div class="card"><h2>이전 잔여금 이관 <small>총 예산에서 빠지고, 정산 때 가용금액에 더해져요</small></h2><div class="grid g2">'+
+    '<label class="f">내용'+inp('transfer.label')+'</label><label class="f">이관 금액'+inp('transfer.amount',{n:1})+'</label></div></div>';
+}
+
+function vUsage(){
+  var cards=S.items.map(function(it,i){
+    var es=it.entries.map(function(e,j){
+      return '<div class="erow'+(e.card?' card':'')+'"><span class="lt">'+letter(j)+'</span>'+
+        '<input data-p="items.'+i+'.entries.'+j+'.amt" data-n="1" class="n amt" inputmode="decimal" value="'+esc(e.amt===''?'':fmt(e.amt))+'" aria-label="금액">'+
+        '<span class="memo">'+inp('items.'+i+'.entries.'+j+'.memo',{ph:'메모 (가게, 날짜 등)'})+'</span>'+
+        '<button class="chip'+(e.card?' card':'')+'" data-a="card" data-i="'+i+'" data-j="'+j+'">'+(e.card?'카드·이체':'영수증')+'</button>'+
+        '<button class="x" data-a="del" data-l="items.'+i+'.entries" data-i="'+j+'" aria-label="삭제">×</button></div>';
+    }).join('');
+    return '<div class="ucard"><div class="uhead"><div class="t"><span>'+(i+1)+'. '+esc(it.name||'(이름 없음)')+'</span>'+C('used'+i)+'</div>'+
+      '<div class="bar"><i data-bar="'+i+'"></i></div><div class="meta"><span>예산 <span class="num" data-c="bud'+i+'"></span></span><span data-c="diff'+i+'"></span></div></div>'+
+      '<div class="ubody">'+(es||'<p class="muted">아직 사용 내역이 없어요.</p>')+
+      '<button class="btn sm" data-a="addEntry" data-i="'+i+'" style="margin-top:6px">+ 사용 추가</button></div></div>';
+  }).join('');
+  return '<div class="stats"><div class="stat"><span>총 예산</span>'+C('budget')+'</div><div class="stat"><span>총 사용</span>'+C('used')+'</div>'+
+    '<div class="stat"><span>카드·이체 (통장 확인)</span>'+C('cardUsed','blue')+'</div><div class="stat"><span>영수증 증빙</span>'+C('rcptUsed')+'</div></div>'+
+    '<p class="legend">칩을 눌러 <b class="blue">카드·이체</b>(모임통장 내역으로 확인)와 <b>영수증</b> 증빙을 바꿀 수 있어요.</p>'+cards;
+}
+
+function vSettle(){
+  var deps=S.deposits.map(function(d,i){
+    return '<div class="drow">'+inp('deposits.'+i+'.label',{aria:'내용'})+inp('deposits.'+i+'.amount',{n:1,aria:'1인 금액'})+inp('deposits.'+i+'.count',{n:1,aria:'인원'})+
+      '<button class="x" data-a="del" data-l="deposits" data-i="'+i+'">×</button></div>';
+  }).join('');
+  var xs=S.bank.extras.map(function(x,i){
+    return '<div class="xrow">'+inp('bank.extras.'+i+'.label',{aria:'내용'})+inp('bank.extras.'+i+'.amount',{n:1,aria:'금액'})+
+      '<button class="x" data-a="del" data-l="bank.extras" data-i="'+i+'">×</button></div>';
+  }).join('');
+  return '<div class="stats"><div class="stat"><span>잔여금액</span>'+C('remain')+'</div><div class="stat hl"><span>선수 1인 반환금</span>'+C('refundEach')+'</div>'+
+    '<div class="stat"><span>통장 최종 잔액</span>'+C('bankEnd')+'</div></div>'+
+    '<div class="card"><h2>1. 1인 분담금 정하기</h2>'+
+    '<div class="kv"><span>총 예산 ÷ 선수 <span data-c="playersTxt"></span></span>'+C('perCalc')+'</div>'+
+    '<div class="kv"><span>5,000원 단위 올림 권장값</span>'+C('perSuggest','blue')+'</div>'+
+    '<div class="grid g2" style="margin-top:10px"><label class="f">확정 1인 분담금'+inp('share',{n:1})+'</label></div>'+
+    '<div class="row-actions"><button class="btn sm" data-a="applySuggest">권장값 적용</button><button class="btn sm" data-a="shareToDeposit">입금 내역에 반영</button></div></div>'+
+    '<div class="card"><h2>2. 입금 내역 <small>금액이 다른 사람은 줄을 나눠 적어요</small></h2>'+
+    '<div class="drow hdr"><span>내용</span><span>1인 금액</span><span>인원</span><span></span></div>'+deps+
+    '<button class="btn sm" data-a="add" data-l="deposits">+ 입금 줄 추가</button>'+
+    '<div style="margin-top:10px"><div class="kv"><span>입금 합계 (<span data-c="depCount"></span>명)</span>'+C('deposit')+'</div></div><div data-c="depCheck"></div></div>'+
+    '<div class="card"><h2>3. 정산 결과</h2>'+
+    '<div class="kv"><span>입금 금액</span>'+C('deposit')+'</div>'+
+    '<div class="kv"><span>+ 이관 금액</span>'+C('transfer')+'</div>'+
+    '<div class="kv"><span>= 이관금액 반영 총 예산</span>'+C('avail')+'</div>'+
+    '<div class="kv"><span>− 총 사용금액</span>'+C('usedNeg','neg')+'</div>'+
+    '<div class="kv big"><span>= 잔여금액</span>'+C('remain')+'</div>'+
+    '<div class="kv"><span>잔여 ÷ 선수 <span data-c="playersTxt"></span></span>'+C('perRefund')+'</div>'+
+    '<div class="kv"><span>반환 단위</span><select data-p="refundUnit" data-n="1" style="width:auto">'+
+      [1,10,100,1000].map(function(u){return '<option value="'+u+'"'+(num(S.refundUnit)===u?' selected':'')+'>'+fmt(u)+'원 단위 (버림)</option>';}).join('')+'</select></div>'+
+    '<div class="kv big"><span>선수 1인 실제 반환금</span>'+C('refundEach','pos')+'</div>'+
+    '<div class="kv"><span>반환 총액</span>'+C('refundTotal')+'</div>'+
+    '<div class="kv"><span>남는 끝전 (통장에 남음)</span>'+C('leftover')+'</div></div>'+
+    '<div class="card yellow"><h2>4. 모임통장 잔액 맞춰보기</h2>'+
+    '<div class="grid g2"><label class="f">시작 잔액 설명'+inp('bank.label')+'</label><label class="f">시작 잔액'+inp('bank.start',{n:1})+'</label></div>'+
+    '<div style="margin-top:10px"><div class="kv"><span>+ 입금 금액</span>'+C('deposit')+'</div><div class="kv"><span>− 사용 금액</span>'+C('usedNeg','neg')+'</div></div>'+
+    '<p class="hdr" style="margin-top:10px">기타 입출금 (출금은 − 로 입력)</p>'+xs+
+    '<button class="btn sm" data-a="add" data-l="bank.extras">+ 기타 줄 추가</button>'+
+    '<div style="margin-top:10px"><div class="kv"><span>− 잔여금액 반환</span>'+C('refundNeg','neg')+'</div>'+
+    '<div class="grid g2" style="margin:8px 0"><label class="f">최종 잔액 설명'+inp('bank.endLabel')+'</label></div>'+
+    '<div class="kv big"><span>최종 통장 잔액 (예상)</span>'+C('bankEnd')+'</div></div>'+
+    '<p class="muted">실제 통장 잔액과 같으면 정산이 맞는 거예요.</p></div>';
+}
+
+function vReport(){
+  var c=calc(), n=Math.max(c.maxEntries,1);
+  var g=S.info.grades.filter(function(x){return num(x.count);}).map(function(x){return esc(x.label)+' '+num(x.count)+'명';}).join(', ');
+  var th='<tr><th>순번</th><th>내용</th><th>단가</th><th>인원</th><th>일수</th><th>금액</th><th>실제사용금액</th><th class="sep"></th>';
+  for(var k=0;k<n;k++) th+='<th>'+letter(k)+'</th>'; th+='</tr>';
+  var body=S.items.map(function(it,i){
+    var x=c.items[i], r='<tr><td class="c">'+(i+1)+'</td><td>'+esc(it.name)+'</td><td class="r">'+fmt(num(it.unit))+'</td><td class="c">'+fmt(num(it.people))+'</td><td class="c">'+fmt(num(it.days))+'</td>'+
+      '<td class="r">'+fmt(x.budget)+'</td><td class="r'+(x.used>x.budget?' neg':'')+'">'+fmt(x.used)+'</td><td class="sep"></td>';
+    for(var k=0;k<n;k++){var e=it.entries[k]; r+='<td class="r'+(e&&e.card?' blue':'')+'">'+(e&&num(e.amt)?fmt(num(e.amt)):'')+'</td>';}
+    return r+'</tr>';
+  }).join('');
+  var colSum=''; for(var k2=0;k2<n;k2++){ var s=S.items.reduce(function(a,it){return a+(it.entries[k2]?num(it.entries[k2].amt):0);},0); colSum+='<td class="r">'+(s?fmt(s):'-')+'</td>'; }
+  body+='<tr><td class="c">'+(S.items.length+1)+'</td><td>'+esc(S.transfer.label)+'</td><td></td><td></td><td></td><td class="r">-'+fmt(c.transfer)+'</td><td class="r">-</td><td class="sep"></td>'+'<td></td>'.repeat(n)+'</tr>';
+  body+='<tr class="tot"><td colspan="5" class="c">합 계</td><td class="r">'+fmt(c.budget)+'</td><td class="r">'+fmt(c.used)+'</td><td class="sep"></td>'+colSum+'</tr>';
+  var bank=S.bank.extras.map(function(x){return '<div class="kv"><span>'+esc(x.label)+'</span><b class="num '+(num(x.amount)<0?'neg':'')+'">'+paren(num(x.amount))+'</b></div>';}).join('');
+  var depTxt=S.deposits.filter(function(d){return num(d.count);}).map(function(d){return fmt(num(d.amount))+'원×'+num(d.count)+'명';}).join(' + ');
+  return '<div class="row-actions" style="margin:0 0 12px"><button class="btn sm" data-a="gsheet">구글시트 내보내기·불러오기</button><button class="btn sm" data-a="notice">공지 문구 복사</button><button class="btn sm" data-a="csv">엑셀(CSV) 받기</button></div>'+
+  '<div class="sheet"><h3>'+esc(S.info.title)+' 정산 안내</h3><ul class="info">'+
+  '<li>장 소 : '+esc(S.info.place)+'</li><li>기 간 : '+esc(c.period)+'</li>'+
+  '<li>참가 인원 : <b class="neg">선수 '+c.players+'명</b>'+(g?' ('+g+')':'')+' / 지도진 '+num(S.info.coaches)+'명 / <b class="neg">총 '+c.total+'명</b></li></ul>'+
+  '<p style="margin:0 0 6px;font-weight:800">• 주요 예산 항목 <span class="legend" style="font-weight:400">— 사용내역 검정: 영수증 증빙 / <span class="blue">파랑: 체크카드 및 이체 (모임통장에서 확인)</span></span></p>'+
+  '<table class="rep">'+th+body+'</table>'+
+  '<div class="repfoot"><div>'+
+  kv('총 예산',won(c.budget))+kv('선수 1인 기준 분담금',won(num(S.share)))+kv('입금 금액 ('+c.depCount+'명)',won(c.deposit),depTxt)+
+  kv('이관금액 반영 총 예산',won(c.avail))+kv('총 사용금액',won(c.used))+kv('잔여금액',won(c.remain))+
+  '<div class="kv"><span class="pos"><b>선수 1인 기준 반환금</b></span><b class="num pos">'+fmt(c.refundEach)+' 원</b></div>'+
+  '<p class="muted pos">잔여금액 ÷ '+c.players+'명 = '+fmt(c.perRefund)+'원 (실제 반환 '+fmt(c.refundEach)+'원)</p></div>'+
+  '<div class="bank"><div class="kv"><span>'+esc(S.bank.label)+'</span><b class="num">'+fmt(num(S.bank.start))+'</b></div>'+
+  '<div class="kv"><span>입금 금액</span><b class="num">'+fmt(c.deposit)+'</b></div>'+
+  '<div class="kv"><span>사용 금액</span><b class="num neg">('+fmt(c.used)+')</b></div>'+bank+
+  '<div class="kv"><span>잔여금액 반환 <small class="muted">'+fmt(c.refundEach)+'×'+c.players+'명</small></span><b class="num neg">('+fmt(c.refundTotal)+')</b></div>'+
+  '<div class="kv" style="border-top:3px double #b9a640"><span><b>'+esc(S.bank.endLabel)+'</b></span><b class="num">'+fmt(c.bankEnd)+'</b></div>'+
+  (S.note?'<p class="muted" style="margin:8px 0 0">'+esc(S.note)+'</p>':'')+'</div></div></div>';
+  function kv(a,b,sub){return '<div class="kv"><span><b>'+a+'</b>'+(sub?'<br><small class="muted">'+esc(sub)+'</small>':'')+'</span><b class="num">'+b+'</b></div>';}
+}
+function paren(n){return n<0?'('+fmt(-n)+')':fmt(n);}
+
+/* ---------- live numbers ---------- */
+function updateCalc(){
+  var c=calc();
+  var map={players:c.players+'명',total:c.total+'명',playersTxt:c.players+'명',period:c.period||'날짜를 입력하세요',
+    itemsBudget:won(c.itemsBudget),transferNeg:'-'+won(c.transfer),transfer:won(c.transfer),budget:won(c.budget),
+    perCalc:won(Math.round(c.perCalc*10)/10),perSuggest:won(c.perSuggest),used:won(c.used),usedNeg:'('+fmt(c.used)+')',
+    cardUsed:won(c.cardUsed),rcptUsed:won(c.used-c.cardUsed),deposit:won(c.deposit),depCount:c.depCount,avail:won(c.avail),
+    remain:won(c.remain),perRefund:fmt(c.perRefund)+'원',refundEach:won(c.refundEach),refundTotal:won(c.refundTotal),
+    refundNeg:'('+fmt(c.refundTotal)+')',leftover:won(c.leftover),bankEnd:won(c.bankEnd),hdrRemain:'잔여 '+won(c.remain)};
+  c.items.forEach(function(x,i){
+    map['used'+i]=won(x.used); map['bud'+i]=won(x.budget);
+    map['diff'+i]=x.diff>=0?'남음 '+won(x.diff):'초과 '+won(-x.diff);
+  });
+  root.querySelectorAll('[data-c]').forEach(function(el){
+    var k=el.getAttribute('data-c');
+    if(k==='depCheck'){
+      el.innerHTML = c.depCount===c.players ? '<div class="okbox">입금 인원 '+c.depCount+'명 = 선수 '+c.players+'명 ✓</div>'
+        : '<div class="warnbox">입금 인원('+c.depCount+'명)과 선수 수('+c.players+'명)가 달라요.</div>';
+      return;
+    }
+    if(k in map) el.textContent=map[k];
+    if(/^diff/.test(k)) el.className=c.items[+k.slice(4)].diff<0?'neg':'';
+  });
+  root.querySelectorAll('[data-bar]').forEach(function(el){
+    var x=c.items[+el.getAttribute('data-bar')]; var p=x.budget>0?Math.min(100,x.used/x.budget*100):(x.used>0?100:0);
+    el.style.width=p+'%'; el.className=x.used>x.budget?'over':'';
+  });
+  root.querySelectorAll('[data-ph]').forEach(function(el){
+    var i=+el.getAttribute('data-ph').slice(4); el.placeholder=fmt(c.items[i].auto);
+  });
+}
+function updateStatus(){
+  var el=document.getElementById('st'); if(!el)return;
+  el.textContent = dirty ? '저장 안 된 변경 있음 (이 기기에 임시 보관 중)' : (artifactApi?'모든 변경 저장됨':'이 기기(브라우저)에 저장됨');
+  el.style.color = dirty ? '#b26b00' : '';
+}
+
+/* ---------- events ---------- */
+var draftT=null;
+function touch(){
+  dirty=true; updateStatus();
+  clearTimeout(draftT); draftT=setTimeout(function(){
+    try{localStorage.setItem(LS_KEY,JSON.stringify({baseRev:published?published.rev:-1,state:S}));}catch(e){}
+  },400);
+}
+root.addEventListener('input',function(e){
+  var t=e.target, p=t.getAttribute('data-p'); if(!p)return;
+  var v=t.value;
+  if(t.getAttribute('data-n')){ v=(t.getAttribute('data-null')&&v.trim()==='')?null:num(v); }
+  setP(p,v); touch(); updateCalc();
+  if(p==='info.title'){ var h=root.querySelector('header h1'); if(h) h.textContent=(S.info.title||'대회')+' 예산·정산'; }
+});
+root.addEventListener('change',function(e){
+  var t=e.target; if(t.getAttribute('data-n') && t.tagName==='INPUT'){ var v=getP(t.getAttribute('data-p')); t.value=(v===null||v==='')?'':fmt(v); }
+  if(t.tagName==='SELECT'){ setP(t.getAttribute('data-p'),num(t.value)); touch(); updateCalc(); }
+});
+root.addEventListener('click',function(e){
+  var b=e.target.closest('[data-a]'); if(!b)return;
+  var a=b.getAttribute('data-a'), i=+b.getAttribute('data-i'), l=b.getAttribute('data-l');
+  var c=calc();
+  switch(a){
+    case 'tab': tab=b.getAttribute('data-t'); try{history.replaceState(null,'','#'+tab);}catch(_){location.hash=tab;} render(); window.scrollTo(0,0); return;
+    case 'add':
+      var arr=getP(l);
+      if(l==='info.grades') arr.push({label:'',count:0});
+      else if(l==='deposits') arr.push({label:'',amount:num(S.share),count:0});
+      else if(l==='bank.extras') arr.push({label:'',amount:0});
+      break;
+    case 'del': getP(l).splice(i,1); break;
+    case 'addItem': S.items.push({name:'',unit:0,people:c.total||0,days:1,manual:null,entries:[]}); break;
+    case 'addEntry': S.items[i].entries.push({amt:0,card:false,memo:''}); touch(); render();
+      var ins=root.querySelectorAll('[data-p="items.'+i+'.entries.'+(S.items[i].entries.length-1)+'.amt"]'); if(ins[0]){ins[0].value='';ins[0].focus();} return;
+    case 'card': var en=S.items[i].entries[+b.getAttribute('data-j')]; en.card=!en.card; break;
+    case 'applySuggest': S.share=c.perSuggest; break;
+    case 'shareToDeposit': if(S.deposits.length) S.deposits[0].amount=num(S.share); else S.deposits.push({label:'기본 분담금',amount:num(S.share),count:c.players}); toast('첫 번째 입금 줄에 반영했어요'); break;
+    case 'save': save(); return;
+    case 'menu': menu(); return;
+    case 'notice': showCopy('공지 문구',noticeText()); return;
+    case 'csv': csv(); return;
+    case 'gsheet': gsheetModal(); return;
+    case 'discardDraft': S=published?clone(published):sample(); dirty=false; restoredDraft=false; try{localStorage.removeItem(LS_KEY);}catch(_){ } render(); return;
+    default: return;
+  }
+  touch(); render();
+});
+
+/* ---------- save (artifact publish) ---------- */
+function buildDoc(state){
+  var json=JSON.stringify(state).replace(/</g,'\\u003c');
+  var head=document.head.innerHTML.replace(/<style id="css">[\s\S]*?<\/style>/,'');
+  return '<!DOCTYPE html>\n<html lang="ko">\n<head>'+head+'<style id="css">'+CSS+'</style>\n</head>\n<body>\n<div id="root"></div>\n'+
+    '<script type="application/json" id="state">'+json+'<\/script>\n<script id="app">'+APP+'<\/script>\n</body>\n</html>';
+}
+function save(){
+  if(!artifactApi){
+    var st0=clone(S); st0.rev=(published?num(published.rev):0)+1;
+    try{ localStorage.setItem(LS_SAVED,JSON.stringify(st0)); localStorage.removeItem(LS_KEY); }
+    catch(e){ toast('이 브라우저에는 저장할 수 없어요. 백업(JSON)을 받아 두세요.'); return; }
+    published=st0; S.rev=st0.rev; dirty=false; restoredDraft=false; updateStatus();
+    toast('이 기기(브라우저)에 저장했어요. 다른 기기와 나누려면 구글시트로 내보내세요'); return;
+  }
+  var st=clone(S); st.rev=(published?num(published.rev):0)+1;
+  toast('저장 중…');
+  Promise.resolve(artifactApi.publish(buildDoc(st))).then(function(){
+    try{localStorage.removeItem(LS_KEY);}catch(_){}
+    published=st; S.rev=st.rev; dirty=false; restoredDraft=false; updateStatus(); toast('저장했어요');
+  }).catch(function(err){
+    var code=(err&&(err.code||err.name))||'';
+    if(/not_granted|not_writer/.test(code)) toast('보기 전용이라 저장할 수 없어요');
+    else if(/conflict/.test(code)) toast('다른 곳에서 먼저 저장했어요. 새 버전을 불러옵니다');
+    else toast('저장하지 못했어요. 잠시 후 다시 시도해 주세요');
+  });
+}
+
+/* ---------- menu / modals ---------- */
+function modal(html){
+  var bg=document.createElement('div'); bg.className='modal-bg'; bg.innerHTML='<div class="modal">'+html+'</div>';
+  bg.addEventListener('click',function(e){ if(e.target===bg||e.target.closest('[data-close]')) bg.remove(); });
+  document.body.appendChild(bg); return bg;
+}
+function menu(){
+  var m=modal('<h3>더보기</h3><p>백업·불러오기와 새 대회 만들기</p><div class="grid">'+
+    '<button class="btn" data-m="backup">백업 파일(JSON) 받기</button>'+
+    '<button class="btn" data-m="copyjson">백업 내용 복사</button>'+
+    '<label class="btn" style="text-align:center;cursor:pointer">백업 파일 불러오기<input type="file" accept=".json,application/json" hidden></label>'+
+    '<button class="btn" data-m="paste">붙여넣어 불러오기</button>'+
+    '<button class="btn" data-m="sample">예시(경주화랑대기) 불러오기</button>'+
+    '<button class="btn" data-m="new" style="color:var(--red)">새 대회 시작 (모두 비우기)</button>'+
+    '<button class="btn ghost" data-close>닫기</button></div>');
+  m.addEventListener('click',function(e){
+    var b=e.target.closest('[data-m]'); if(!b)return; var k=b.getAttribute('data-m');
+    if(k==='backup'){ download((S.info.title||'정산')+'_백업.json',JSON.stringify(S,null,1),'application/json'); }
+    if(k==='copyjson'){ m.remove(); showCopy('백업 내용',JSON.stringify(S)); return; }
+    if(k==='paste'){ m.remove(); pasteImport(); return; }
+    if(k==='sample'||k==='new'){ m.remove(); confirmBox(k==='new'?'모든 내용을 비우고 새로 시작할까요?':'지금 내용을 예시 데이터로 바꿀까요?','저장하기 전까지는 되돌릴 수 있어요.',function(){ S=k==='new'?blank():sample(); touch(); tab='info'; render(); }); return; }
+  });
+  m.querySelector('input[type=file]').addEventListener('change',function(e){
+    var f=e.target.files[0]; if(!f)return; var r=new FileReader();
+    r.onload=function(){ if(loadJSON(r.result)) m.remove(); }; r.readAsText(f);
+  });
+}
+function loadJSON(txt){
+  try{ var o=JSON.parse(txt); if(!o||!o.info||!o.items) throw 0; S=o; touch(); render(); toast('불러왔어요. 저장을 눌러 확정하세요'); return true; }
+  catch(e){ toast('올바른 백업 내용이 아니에요'); return false; }
+}
+function pasteImport(){
+  var m=modal('<h3>붙여넣어 불러오기</h3><p>백업 내용을 아래에 붙여넣으세요.</p><textarea class="copy"></textarea><div class="act" style="margin-top:10px"><button class="btn" data-close>취소</button><button class="btn pri" data-ok>불러오기</button></div>');
+  m.querySelector('[data-ok]').onclick=function(){ if(loadJSON(m.querySelector('textarea').value)) m.remove(); };
+}
+function confirmBox(t,p,ok){
+  var m=modal('<h3>'+esc(t)+'</h3><p>'+esc(p)+'</p><div class="act"><button class="btn" data-close>취소</button><button class="btn pri" data-ok>확인</button></div>');
+  m.querySelector('[data-ok]').onclick=function(){ m.remove(); ok(); };
+}
+function showCopy(title,text){
+  var m=modal('<h3>'+esc(title)+'</h3><textarea class="copy" readonly>'+esc(text)+'</textarea><div class="act" style="margin-top:10px"><button class="btn" data-close>닫기</button><button class="btn pri" data-ok>복사</button></div>');
+  m.querySelector('[data-ok]').onclick=function(){
+    var ta=m.querySelector('textarea');
+    try{ navigator.clipboard.writeText(text).then(function(){toast('복사했어요');},function(){ta.select();toast('길게 눌러 복사해 주세요');}); }
+    catch(e){ ta.select(); toast('길게 눌러 복사해 주세요'); }
+  };
+}
+function download(name,data,mime){
+  if(!downloadsApi){
+    if(window.parent!==window){ showCopy('파일 받기를 쓸 수 없는 화면이에요 — 아래 내용을 복사하세요',data); return; }
+    try{ var u=URL.createObjectURL(new Blob([data],{type:mime+';charset=utf-8'})); var a=document.createElement('a'); a.href=u; a.download=name;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){URL.revokeObjectURL(u);},2000); toast('파일을 받았어요'); }
+    catch(e){ showCopy('아래 내용을 복사하세요',data); }
+    return;
+  }
+  Promise.resolve(downloadsApi.save({filename:name,data:data,mimeType:mime})).then(function(){toast('파일을 저장했어요');},function(){toast('파일 저장을 취소했어요');});
+}
+function noticeText(){
+  var c=calc(), L=[];
+  L.push('['+S.info.title+' 정산 안내]','');
+  L.push('• 장소: '+S.info.place,'• 기간: '+c.period,'• 참가: 선수 '+c.players+'명 / 지도진 '+num(S.info.coaches)+'명 / 총 '+c.total+'명','');
+  L.push('■ 항목별 사용금액');
+  S.items.forEach(function(it,i){L.push((i+1)+'. '+it.name+': '+won(c.items[i].used)+' (예산 '+won(c.items[i].budget)+')');});
+  L.push('');
+  L.push('• 총 예산: '+won(c.budget),'• 1인 분담금: '+won(num(S.share)),'• 입금 금액('+c.depCount+'명): '+won(c.deposit),
+    '• 이관금액 반영 총 예산: '+won(c.avail),'• 총 사용금액: '+won(c.used),'• 잔여금액: '+won(c.remain),
+    '• 선수 1인 반환금: '+won(c.refundEach)+' (잔여 ÷ '+c.players+'명 = '+fmt(c.perRefund)+'원)','');
+  L.push('■ 모임통장','시작 잔액 '+won(num(S.bank.start))+' + 입금 '+won(c.deposit)+' − 사용 '+won(c.used));
+  S.bank.extras.forEach(function(x){L.push((num(x.amount)<0?'− ':'+ ')+x.label+' '+won(Math.abs(num(x.amount))));});
+  L.push('− 반환 '+won(c.refundTotal),'= '+S.bank.endLabel+': '+won(c.bankEnd));
+  if(S.note) L.push('',S.note);
+  return L.join('\n');
+}
+function csv(){
+  var c=calc(), n=Math.max(c.maxEntries,1), R=[];
+  function q(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+  R.push([S.info.title+' 정산 안내']);R.push(['장소',S.info.place]);R.push(['기간',c.period]);R.push(['참가 인원','선수 '+c.players+'명 / 지도진 '+num(S.info.coaches)+'명 / 총 '+c.total+'명']);R.push([]);
+  var h=['순번','내용','단가','인원','일수','금액','실제사용금액'];for(var k=0;k<n;k++)h.push(letter(k));R.push(h);
+  S.items.forEach(function(it,i){var r=[i+1,it.name,num(it.unit),num(it.people),num(it.days),c.items[i].budget,c.items[i].used];
+    for(var k=0;k<n;k++){var e=it.entries[k];r.push(e?num(e.amt)+(e.card?' (카드·이체)':''):'');}R.push(r);});
+  R.push([S.items.length+1,S.transfer.label,'','','',-c.transfer,'']);R.push(['','합계','','','',c.budget,c.used]);R.push([]);
+  [['총 예산',c.budget],['선수 1인 분담금',num(S.share)],['입금 금액',c.deposit],['이관금액 반영 총 예산',c.avail],['총 사용금액',c.used],['잔여금액',c.remain],['선수 1인 반환금',c.refundEach],['반환 총액',c.refundTotal]].forEach(function(x){R.push(x);});
+  R.push([]);R.push([S.bank.label,num(S.bank.start)]);R.push(['입금 금액',c.deposit]);R.push(['사용 금액',-c.used]);
+  S.bank.extras.forEach(function(x){R.push([x.label,num(x.amount)]);});R.push(['잔여금액 반환',-c.refundTotal]);R.push([S.bank.endLabel,c.bankEnd]);
+  download((S.info.title||'정산')+'_정산표.csv','﻿'+R.map(function(r){return r.map(q).join(',');}).join('\r\n'),'text/csv');
+}
+/* ---------- Google Sheets (Google Drive 커넥터) ---------- */
+var GD='Google Drive', mcpApi=null;
+var SHEET_PREFIX='[정산]';
+function cellTxt(v){ v=String(v==null?'':v).replace(/[|\r\n\t]/g,' ').trim(); return /^[=+\-@]/.test(v)?' '+v:v; }
+function sheetRows(){
+  var c=calc(),R=[],I=S.info;
+  R.push(['구분','번호','내용','금액','인원','일수','결제','메모','직접금액']);
+  R.push(['※','','"구분" 칸의 단어(대회·인원·예산·사용·이관·분담금·입금·반환단위·통장시작·통장기타·통장최종)로 앱이 읽어요. 줄을 고치거나 "사용" 줄을 추가한 뒤 앱에서 불러오세요.']);
+  R.push(['대회','대회명',cellTxt(I.title)]);R.push(['대회','장소',cellTxt(I.place)]);
+  R.push(['대회','시작일',I.start||'']);R.push(['대회','종료일',I.end||'']);
+  R.push(['대회','지도진','',num(I.coaches)]);R.push(['대회','메모',cellTxt(S.note)]);
+  I.grades.forEach(function(g){R.push(['인원','',cellTxt(g.label),num(g.count)]);});
+  S.items.forEach(function(it,i){
+    R.push(['예산',i+1,cellTxt(it.name),num(it.unit),num(it.people),num(it.days),'','',(it.manual===null||it.manual===''||it.manual===undefined)?'':num(it.manual)]);
+  });
+  S.items.forEach(function(it,i){
+    it.entries.forEach(function(e){R.push(['사용',i+1,cellTxt(it.name),num(e.amt),'','',e.card?'카드·이체':'영수증',cellTxt(e.memo)]);});
+  });
+  R.push(['이관','',cellTxt(S.transfer.label),num(S.transfer.amount)]);
+  R.push(['분담금','','선수 1인 분담금',num(S.share)]);
+  S.deposits.forEach(function(d){R.push(['입금','',cellTxt(d.label),num(d.amount),num(d.count)]);});
+  R.push(['반환단위','','반환금 버림 단위',num(S.refundUnit)||1]);
+  R.push(['통장시작','',cellTxt(S.bank.label),num(S.bank.start)]);
+  S.bank.extras.forEach(function(x){R.push(['통장기타','',cellTxt(x.label),num(x.amount)]);});
+  R.push(['통장최종','',cellTxt(S.bank.endLabel)]);
+  R.push([]);
+  R.push(['결과','','▼ 아래는 내보낸 시점에 앱이 계산한 값이에요 (불러올 때는 무시)']);
+  [['총 예산',c.budget],['입금 금액',c.deposit],['이관금액 반영 총 예산',c.avail],['총 사용금액',c.used],['잔여금액',c.remain],
+   ['선수 1인 반환금',c.refundEach],['반환 총액',c.refundTotal],['통장 최종 잔액(예상)',c.bankEnd]].forEach(function(x){R.push(['결과','',x[0],x[1]]);});
+  S.items.forEach(function(it,i){var x=c.items[i];R.push(['결과',i+1,cellTxt(it.name)+' 사용합계',x.used,'','','','예산 '+fmt(x.budget)]);});
+  return R;
+}
+function rowsToCSV(R){
+  function q(v){v=String(v==null?'':v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+  return R.map(function(r){return r.map(q).join(',');}).join('\n');
+}
+function normDate(s){ var m=String(s||'').match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/); if(!m)return ''; return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2); }
+function parseSheet(text){ return parseRows(mdRows(text)); }
+function parseCSVText(t){
+  var rows=[],row=[],cur='',q=false; t=String(t).replace(/^\ufeff/,'');
+  for(var i=0;i<t.length;i++){ var ch=t[i];
+    if(q){ if(ch==='"'){ if(t[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else if(ch==='"') q=true; else if(ch===','){row.push(cur);cur='';}
+    else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&t[i+1]==='\n')i++; row.push(cur);rows.push(row);row=[];cur=''; }
+    else cur+=ch; }
+  if(cur!==''||row.length){row.push(cur);rows.push(row);}
+  return rows.map(function(r){return r.map(function(x){return x.trim();});});
+}
+function mdRows(text){
+  var rows=[];
+  String(text).split('\n').forEach(function(line){
+    line=line.trim(); if(line.charAt(0)!=='|')return;
+    var cells=line.split(/(?<!\\)\|/).slice(1,-1).map(function(x){return x.trim().replace(/\\([\\`*_{}\[\]()#+\-.!|"<>~])/g,'$1');});
+    if(cells.every(function(x){return /^:?-*:?$/.test(x);}))return;
+    rows.push(cells);
+  });
+  return rows;
+}
+function parseRows(rows){
+  var st={rev:S.rev,info:{title:'',place:'',start:'',end:'',grades:[],coaches:0},items:[],transfer:{label:'이전 대회 잔여금 이관',amount:0},
+    share:0,deposits:[],refundUnit:1,bank:{label:'시작 통장 잔액',start:0,endLabel:'최종 통장 잔액',extras:[]},note:'',gsheet:S.gsheet||null};
+  var byNo={}, hits=0;
+  function item(no,name){ if(!byNo[no]){ byNo[no]={name:name||('항목 '+no),unit:0,people:0,days:1,manual:null,entries:[]}; st.items.push(byNo[no]); } return byNo[no]; }
+  rows.forEach(function(r){
+    var k=(r[0]||'').replace(/\s/g,''), no=r[1]||'', txt=r[2]||'';
+    switch(k){
+      case '대회': hits++;
+        if(no==='대회명')st.info.title=txt; else if(no==='장소')st.info.place=txt;
+        else if(no==='시작일')st.info.start=normDate(txt); else if(no==='종료일')st.info.end=normDate(txt);
+        else if(no==='지도진')st.info.coaches=num(r[3]); else if(no==='메모')st.note=txt; break;
+      case '인원': hits++; st.info.grades.push({label:txt,count:num(r[3])}); break;
+      case '예산': hits++; var it=item(no||String(st.items.length+1),txt); it.name=txt||it.name; it.unit=num(r[3]); it.people=num(r[4]); it.days=num(r[5]);
+        it.manual=(r[8]||'')===''?null:num(r[8]); break;
+      case '사용': hits++; if(!num(r[3])&&!(r[7]||''))break;
+        item(no||'기타',txt).entries.push({amt:num(r[3]),card:/카드|이체/.test(r[6]||''),memo:r[7]||''}); break;
+      case '이관': hits++; st.transfer={label:txt,amount:num(r[3])}; break;
+      case '분담금': hits++; st.share=num(r[3]); break;
+      case '입금': hits++; st.deposits.push({label:txt,amount:num(r[3]),count:num(r[4])}); break;
+      case '반환단위': hits++; st.refundUnit=num(r[3])||1; break;
+      case '통장시작': hits++; st.bank.label=txt; st.bank.start=num(r[3]); break;
+      case '통장기타': hits++; st.bank.extras.push({label:txt,amount:num(r[3])}); break;
+      case '통장최종': hits++; st.bank.endLabel=txt||st.bank.endLabel; break;
+    }
+  });
+  if(!hits || !st.items.length) throw new Error('format');
+  if(!st.info.grades.length) st.info.grades=[{label:'선수',count:0}];
+  if(!st.deposits.length) st.deposits=[{label:'기본 분담금',amount:st.share,count:0}];
+  return st;
+}
+function gErr(e){
+  var code=e&&e.code;
+  switch(code){
+    case 'server_not_connected': case 'server_not_found': return 'Google Drive가 연결되어 있지 않아요. claude.ai 설정 → 커넥터에서 Google Drive를 추가한 뒤 다시 눌러 주세요.';
+    case 'needs_reauth': return 'Google Drive 연결이 만료됐어요. claude.ai 설정 → 커넥터에서 Google Drive를 다시 연결해 주세요.';
+    case 'selection_required': return '연결된 Google Drive가 여러 개예요. 화면에 뜨는 선택 창에서 하나를 골라 주세요.';
+    case 'approval_required': return '구글 드라이브 사용 허락이 필요해요. 버튼을 다시 누르고, 뜨는 창에서 허용을 눌러 주세요.';
+    case 'not_in_manifest': return '이 페이지에서 Google Drive 사용이 꺼져 있어요.';
+    case 'blocked_by_policy': return '조직 정책으로 Google Drive를 쓸 수 없어요.';
+    case 'server_unavailable': case 'rate_limited': return '구글 드라이브가 잠시 응답하지 않아요. 잠시 후 다시 시도해 주세요.';
+    case 'not_granted': case 'capability_disabled': case 'capability_removed': return '이 화면에서는 구글 드라이브 연결을 쓸 수 없어요. claude.ai에서 열어 주세요.';
+    case 'tool_error': return '구글 드라이브가 요청을 거절했어요: '+(e.message||'');
+    default: return '구글 드라이브 작업이 완료되지 않았어요. 드라이브에서 결과를 확인한 뒤 다시 시도해 주세요.';
+  }
+}
+function stamp(){var d=new Date();function p(n){return ('0'+n).slice(-2);}return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}
+function gsheetModal(){
+  var last=S.gsheet;
+  var m=modal('<h3>구글시트 연동</h3>'+
+    (mcpApi?'':'<div class="warnbox" style="margin-bottom:10px">구글 드라이브 바로 연결은 Claude 앱에서 열었을 때만 돼요. 여기서는 CSV 파일로 주고받아요:<br>① <b>시트용 CSV 받기</b> → 구글시트에서 파일 › 가져오기<br>② 구글시트에서 파일 › 다운로드 › CSV → <b>시트 CSV 불러오기</b></div>')+
+    '<p>· <b>내보내기</b>: 지금 내용을 내 구글 드라이브에 <b>새 시트</b>로 만들어요 (누를 때마다 새 파일).<br>· <b>불러오기</b>: 시트에서 고치거나 "사용" 줄을 추가한 뒤 불러오면 앱에 반영돼요.</p>'+
+    (last&&last.url?'<div class="okbox" style="margin-bottom:12px">최근 내보낸 시트: <a href="'+esc(last.url)+'" target="_blank" rel="noopener">'+esc(last.title)+'</a><br><small>'+esc(last.at||'')+'</small></div>':'')+
+    '<div id="gmsg"></div><div class="grid">'+
+    '<button class="btn pri" data-g="export"'+(mcpApi?'':' disabled')+'>구글시트로 내보내기</button>'+
+    '<button class="btn" data-g="list"'+(mcpApi?'':' disabled')+'>구글시트에서 불러오기</button>'+
+    '<button class="btn" data-g="csv">시트용 CSV 파일 받기</button>'+
+    '<label class="btn" style="text-align:center;cursor:pointer">시트 CSV 불러오기<input type="file" accept=".csv,text/csv" hidden data-gcsv></label>'+
+    '<div id="glist"></div><button class="btn ghost" data-close>닫기</button></div>');
+  var msg=m.querySelector('#gmsg'), list=m.querySelector('#glist'), busy=false;
+  m.querySelector('[data-gcsv]').addEventListener('change',function(e){
+    var f=e.target.files[0]; if(!f)return; var r=new FileReader();
+    r.onload=function(){ var st; try{ st=parseRows(parseCSVText(r.result)); }catch(_){ say('이 파일에서 정산 데이터를 찾지 못했어요. 앱에서 받은 시트 형식(구분 칸)을 유지해 주세요.'); return; }
+      m.remove(); confirmBox('"'+f.name+'" 내용으로 바꿀까요?','예산 항목 '+st.items.length+'개. 지금 앱 내용은 이 파일 내용으로 바뀌어요 (저장 전까지는 되돌릴 수 있어요).',function(){ S=st; touch(); render(); toast('불러왔어요. 저장을 눌러 확정하세요'); }); };
+    r.readAsText(f,'utf-8');
+  });
+  function say(t,ok){ msg.innerHTML=t?'<div class="'+(ok?'okbox':'warnbox')+'" style="margin:0 0 10px">'+t+'</div>':''; }
+  m.addEventListener('click',function(e){
+    var b=e.target.closest('[data-g]'); if(!b||busy)return; var k=b.getAttribute('data-g');
+    if(k==='csv'){ download((S.info.title||'정산')+'_시트용.csv','﻿'+rowsToCSV(sheetRows()),'text/csv'); return; }
+    if(!mcpApi) return;
+    busy=true; b.disabled=true;
+    function done(){busy=false;b.disabled=false;}
+    if(k==='export'){
+      say('구글 드라이브에 시트를 만드는 중…',true);
+      var title=SHEET_PREFIX+' '+(S.info.title||'대회')+' ('+stamp()+')';
+      mcpApi.callTool(GD,'create_file',{title:title,textContent:rowsToCSV(sheetRows()),contentMimeType:'text/csv'}).then(function(res){
+        var p=res.payload||{}; var url=p.viewUrl||(p.id?'https://docs.google.com/spreadsheets/d/'+p.id+'/edit':'');
+        S.gsheet={id:p.id||'',url:url,title:p.title||title,at:stamp()}; touch();
+        say('만들었어요! <a href="'+esc(url)+'" target="_blank" rel="noopener">시트 열기</a> · 앱의 "저장"을 누르면 시트 링크도 함께 저장돼요.',true);
+        done();
+      },function(err){ say(esc(gErr(err))); done(); });
+    }
+    if(k==='list'){
+      say('시트 목록을 찾는 중…',true);
+      mcpApi.callTool(GD,'search_files',{query:"title contains '"+SHEET_PREFIX+"' and mimeType = 'application/vnd.google-apps.spreadsheet'",excludeContentSnippets:true,pageSize:20},{cache:false}).then(function(res){
+        var fs=((res.payload||{}).files||[]).slice().sort(function(a,b){return String(b.modifiedTime).localeCompare(String(a.modifiedTime));});
+        say(fs.length?'불러올 시트를 고르세요 (최근 수정순)':'제목이 "'+SHEET_PREFIX+'"로 시작하는 시트가 없어요. 먼저 내보내기를 해 주세요.',!!fs.length);
+        list.innerHTML=fs.map(function(f){
+          return '<button class="btn" style="text-align:left;white-space:normal;width:100%;margin-bottom:6px" data-g="pick" data-id="'+esc(f.id)+'">'+esc(f.title)+
+            '<br><small class="muted">수정 '+esc(String(f.modifiedTime||'').replace('T',' ').slice(0,16))+' (UTC)</small></button>';
+        }).join('');
+        done();
+      },function(err){ say(esc(gErr(err))); done(); });
+    }
+    if(k==='pick'){
+      var id=b.getAttribute('data-id'); say('시트를 읽는 중…',true);
+      mcpApi.callTool(GD,'read_file_content',{fileId:id},{cache:false}).then(function(res){
+        var p=res.payload||{}, text=typeof p==='string'?p:(p.fileContent||'');
+        var st; try{ st=parseSheet(text); }catch(_){ say('이 시트에서 정산 데이터를 찾지 못했어요. 앱에서 내보낸 형식(구분 칸)을 유지해 주세요.'); done(); return; }
+        done(); m.remove();
+        var used=st.items.reduce(function(a,it){return a+it.entries.reduce(function(x,e){return x+num(e.amt);},0);},0);
+        confirmBox('"'+(p.title||'시트')+'" 내용으로 바꿀까요?','예산 항목 '+st.items.length+'개, 사용 '+fmt(used)+'원. 지금 앱 내용은 이 시트 내용으로 바뀌어요 (저장 전까지는 되돌릴 수 있어요).',function(){
+          st.gsheet={id:id,url:p.viewUrl||'',title:p.title||'',at:stamp()}; S=st; touch(); render(); toast('시트에서 불러왔어요. 저장을 눌러 확정하세요');
+        });
+      },function(err){ say(esc(gErr(err))); done(); });
+    }
+  });
+}
+
+var toastEl=null,toastT=null;
+function toast(m){ if(!toastEl){toastEl=document.createElement('div');toastEl.className='toast';document.body.appendChild(toastEl);} toastEl.textContent=m; toastEl.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(function(){toastEl.classList.remove('on');},2600); }
+
+window.addEventListener('hashchange',function(){var t=location.hash.replace('#','');if(TABS.some(function(x){return x[0]===t;})&&t!==tab){tab=t;render();}});
+window.addEventListener('beforeunload',function(){ try{ if(dirty) localStorage.setItem(LS_KEY,JSON.stringify({baseRev:published?published.rev:-1,state:S})); }catch(e){} });
+
+render();
+if(window.claude && typeof window.claude.use==='function'){
+  window.claude.use('artifact').then(function(a){artifactApi=a;updateStatus();},function(){});
+  window.claude.use('downloads').then(function(d){downloadsApi=d;},function(){});
+  window.claude.use('mcp').then(function(m){mcpApi=m;},function(){});
+}
+})();
+</script>
+</body>
+</html>
